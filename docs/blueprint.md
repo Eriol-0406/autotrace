@@ -1,4 +1,4 @@
-# **App Name**: AutoTrace Lite
+# **App Name**: AutoTrace
 
 ## Core Features:
 
