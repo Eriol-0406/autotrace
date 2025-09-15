@@ -3,7 +3,7 @@
 
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { useAppState } from "@/context/app-state-provider";
+import { useAppState } from "@/context/enhanced-app-state-provider";
 import { getDataForRole } from "@/lib/data";
 import type { Role, Transaction, Part } from "@/lib/types";
 import { Boxes, ArrowDownUp, Factory, Building, Truck, Shield, ArrowUp, ArrowDown } from "lucide-react";
@@ -39,7 +39,7 @@ const EntityOverview = ({ parts }: { parts: Part[] }) => {
             <CardContent>
                 <div className="space-y-4">
                     {roles.map(role => {
-                        const { parts: roleParts } = getDataForRole(role, parts, [], []);
+                        const { parts: roleParts } = getDataForRole(role, parts, [], [], false); // Don't use admin mode for entity breakdown
                         const totalParts = roleParts.reduce((sum, part) => sum + part.quantity, 0);
                         const uniqueSkus = new Set(roleParts.map(p => p.name)).size;
                         const Icon = icons[role];

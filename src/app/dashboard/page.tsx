@@ -1,7 +1,7 @@
 
 "use client";
 
-import { useAppState } from '@/context/app-state-provider';
+import { useAppState } from '@/context/enhanced-app-state-provider';
 import { AppLayout } from '@/components/app-layout';
 import { ClientDashboard } from '@/components/dashboard/client-dashboard';
 import { AdminDashboard } from '@/components/dashboard/admin-dashboard';

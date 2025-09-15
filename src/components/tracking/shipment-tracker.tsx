@@ -5,18 +5,25 @@ import * as React from 'react';
 import { useState, useMemo } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { useAppState } from '@/context/app-state-provider';
+import { useAppState } from '@/context/enhanced-app-state-provider';
 import { Badge } from '@/components/ui/badge';
 import { Truck, PackageCheck, CheckCircle, Package, Warehouse } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { Button } from '../ui/button';
 import { receiveShipment } from '@/lib/data';
 import { useToast } from '@/hooks/use-toast';
+import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
+import { Label } from '@/components/ui/label';
+import { Input } from '@/components/ui/input';
 
 export function ShipmentTracker() {
-  const { shipments, parts, transactions, updateUserData } = useAppState();
+  const { shipments, parts, transactions, vendors, updateVendorRating, updateUserData, role } = useAppState();
   const [selectedShipmentId, setSelectedShipmentId] = useState(shipments.length > 0 ? shipments[0].id : '');
   const { toast } = useToast();
+
+  const [ratingOpen, setRatingOpen] = useState(false);
+  const [ratingValue, setRatingValue] = useState<number>(5);
+  const [ratingVendorId, setRatingVendorId] = useState<string>('');
 
   React.useEffect(() => {
     if (shipments.length > 0 && !shipments.find(s => s.id === selectedShipmentId)) {
@@ -37,11 +44,45 @@ export function ShipmentTracker() {
     const result = receiveShipment(selectedShipment.id, { parts, shipments, transactions });
 
     if (result.success) {
-      updateUserData(result.updatedData);
+      // 1) Update parts/shipments per domain logic
+      let newTransactions = [...transactions];
+
+      // 2) Also log a transaction entry so Reports reflect the stock update
+      const supplyTx = {
+        id: `T${String(newTransactions.length + 1).padStart(3, '0')}`,
+        partName: selectedShipment.partName,
+        type: 'supply' as const,
+        quantity: selectedShipment.quantity,
+        date: new Date().toISOString().split('T')[0],
+        from: selectedShipment.from,
+        to: selectedShipment.to,
+        role: (role || 'Distributor') as any,
+        // Include blockchain refs if shipment carried them
+        blockchainOrderId: (selectedShipment as any).blockchainOrderId,
+        blockchainTxHash: (selectedShipment as any).blockchainTxHash,
+        etherscanUrl: (selectedShipment as any).etherscanUrl,
+      };
+      newTransactions = [supplyTx, ...newTransactions];
+
+      updateUserData({
+        parts: result.updatedData.parts,
+        shipments: result.updatedData.shipments,
+        transactions: newTransactions,
+      });
+
       toast({
         title: 'Shipment Received!',
         description: `${selectedShipment.quantity} units of ${selectedShipment.partName} have been added to your inventory.`,
       });
+
+      // 3) Prompt for vendor rating
+      const vendor = vendors.find(v => v.name === selectedShipment.from);
+      if (vendor) {
+        setRatingVendorId(vendor.id);
+        setRatingValue(vendor.rating || 5);
+        setRatingOpen(true);
+      }
+
       // Select another shipment if available, or clear selection
       const nextShipment = shipments.find(s => s.id !== selectedShipment.id);
       setSelectedShipmentId(nextShipment ? nextShipment.id : '');
@@ -124,8 +165,8 @@ export function ShipmentTracker() {
                   <SelectValue placeholder="Select a shipment" />
                 </SelectTrigger>
                 <SelectContent>
-                  {shipments.map((s) => (
-                    <SelectItem key={s.id} value={s.id}>
+                  {shipments.map((s, index) => (
+                    <SelectItem key={`${s.id}-${index}`} value={s.id}>
                       {s.id}: {s.partName}
                     </SelectItem>
                   ))}
@@ -159,6 +200,26 @@ export function ShipmentTracker() {
           </CardContent>
         </Card>
       </div>
+
+      {/* Vendor Rating Dialog */}
+      <Dialog open={ratingOpen} onOpenChange={setRatingOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Rate Vendor</DialogTitle>
+          </DialogHeader>
+          <div className="grid gap-4 py-2">
+            <div className="grid grid-cols-4 items-center gap-2">
+              <Label htmlFor="rating" className="col-span-2">Rating (1-5)</Label>
+              <Input id="rating" type="number" min={1} max={5} value={ratingValue}
+                onChange={(e) => setRatingValue(Math.max(1, Math.min(5, parseInt(e.target.value || '0', 10))))}
+                className="col-span-2" />
+            </div>
+          </div>
+          <DialogFooter>
+            <Button onClick={() => { if (ratingVendorId) { updateVendorRating(ratingVendorId, ratingValue); } setRatingOpen(false); }}>Save</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

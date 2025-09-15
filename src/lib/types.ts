@@ -8,6 +8,15 @@ export type Transaction = {
   from: string;
   to: string;
   role: Role; // Which role's perspective this transaction is from
+  status: 'pending' | 'approved' | 'rejected' | 'completed';
+  fromWallet?: string; // Wallet address of sender
+  toWallet?: string; // Wallet address of recipient
+  invoiceNumber?: string; // Invoice/receipt number
+  blockchainOrderId?: number; // Blockchain order ID
+  blockchainTxHash?: string; // Blockchain transaction hash
+  etherscanUrl?: string; // Link to view on Etherscan
+  approvedBy?: string; // Admin who approved the transaction
+  approvedAt?: string; // Timestamp of approval
 };
 
 export type Part = {
@@ -24,7 +33,7 @@ export type Part = {
 
 export type Role = 'Manufacturer' | 'Supplier' | 'Distributor';
 
-export type ShipmentStatus = 'Order Placed' | 'In Transit' | 'Delayed' | 'Out for Delivery' | 'Delivered';
+export type ShipmentStatus = 'Pending' | 'In Transit' | 'Delivered' | 'Delayed';
 
 export type ShipmentHistory = {
     status: ShipmentStatus;
@@ -42,6 +51,9 @@ export type Shipment = {
   estimatedDelivery: string;
   history: ShipmentHistory[];
   role: Role;
+  blockchainOrderId?: number;
+  blockchainTxHash?: string;
+  etherscanUrl?: string;
 };
 
 export type Vendor = {

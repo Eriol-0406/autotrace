@@ -14,7 +14,7 @@ import { useRouter } from 'next/navigation';
 import { useForm } from 'react-hook-form';
 import { z } from 'zod';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { useAppState } from '@/context/app-state-provider';
+import { useAppState } from '@/context/enhanced-app-state-provider';
 import type { Vendor } from '@/lib/types';
 
 const newVendorSchema = z.object({

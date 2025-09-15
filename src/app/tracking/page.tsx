@@ -2,7 +2,8 @@
 "use client";
 import { AppLayout } from '@/components/app-layout';
 import { ShipmentTracker } from "@/components/tracking/shipment-tracker";
-import { useAppState } from '@/context/app-state-provider';
+import { AdminTrackingModule } from "@/components/tracking/admin-tracking-module";
+import { useAppState } from '@/context/enhanced-app-state-provider';
 
 const roleSpecifics = {
     Manufacturer: {
@@ -19,10 +20,15 @@ const roleSpecifics = {
     },
   };
 
+const adminSpecifics = {
+  title: 'System Transaction Audit',
+  description: 'Search, audit, and monitor all transactions across the network for compliance and integrity.',
+};
+
 export default function TrackingPage() {
-    const { role } = useAppState();
+    const { role, isAdmin } = useAppState();
     
-    if (!role) {
+    if (!role && !isAdmin) {
         return (
             <AppLayout>
                 <div className="flex items-center justify-center h-full">
@@ -32,7 +38,7 @@ export default function TrackingPage() {
         )
     }
 
-    const specifics = roleSpecifics[role] || roleSpecifics.Supplier;
+    const specifics = isAdmin ? adminSpecifics : (roleSpecifics[role!] || roleSpecifics.Supplier);
 
     return (
         <AppLayout>
@@ -43,7 +49,7 @@ export default function TrackingPage() {
                     {specifics.description}
                 </p>
                 </div>
-                <ShipmentTracker />
+                {isAdmin ? <AdminTrackingModule /> : <ShipmentTracker />}
             </div>
         </AppLayout>
     );

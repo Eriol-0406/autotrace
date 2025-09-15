@@ -3,25 +3,26 @@
 
 import { AppLayout } from '@/components/app-layout';
 import { VendorsList } from '@/components/vendors/vendors-list';
-import { useAppState } from '@/context/app-state-provider';
+import { AddVendorDialog } from '@/components/vendors/add-vendor-dialog';
+import { useAppState } from '@/context/enhanced-app-state-provider';
 import type { Role } from '@/lib/types';
-import { Building, Factory, Handshake, Store, Truck, Shield } from 'lucide-react';
+import { Building, Factory, Handshake, Store, Truck, Shield, Plus } from 'lucide-react';
 import { AdminVendorsList } from '@/components/vendors/admin-vendors-list';
 
 const roleSpecifics: Record<Role, { title: string; description: string; icon: React.ElementType }> = {
   Manufacturer: {
     title: 'Suppliers & Customers',
-    description: "Manage your raw material suppliers and the distributors you ship to.",
+    description: "View approved vendors and their supplied parts. Create orders to vendors for inventory needs.",
     icon: Factory,
   },
   Supplier: {
     title: 'Partners',
-    description: "Manage the manufacturers you source from and the distributors you supply.",
+    description: "View approved business partners. Rate vendors based on delivery reliability and service quality.",
     icon: Building,
   },
   Distributor: {
     title: 'Suppliers & Customers',
-    description: "Manage your network of suppliers and the customers you serve.",
+    description: "View approved vendors in your network. Create orders and rate vendor performance.",
     icon: Truck,
   },
 };
@@ -50,6 +51,11 @@ export default function VendorsPage() {
               {specifics.description}
             </p>
           </div>
+          
+          {/* Add Vendor Button (only for admin users) */}
+          {isAdmin && (
+            <AddVendorDialog />
+          )}
         </div>
         {isAdmin ? <AdminVendorsList /> : <VendorsList />}
       </div>

@@ -7,7 +7,7 @@ import { StockAlerts } from '@/components/dashboard/stock-alerts';
 import { RecentTransactions } from '@/components/dashboard/recent-transactions';
 import { SupplyForecast } from '@/components/dashboard/supply-forecast';
 import { getDataForRole } from '@/lib/data';
-import { useAppState } from '@/context/app-state-provider';
+import { useAppState } from '@/context/enhanced-app-state-provider';
 
 const roleSpecifics = {
   Manufacturer: {

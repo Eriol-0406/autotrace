@@ -1,7 +1,6 @@
 
 "use client";
 
-import { Bar, BarChart, CartesianGrid, XAxis, YAxis, Tooltip } from 'recharts';
 import {
   Card,
   CardContent,
@@ -9,17 +8,15 @@ import {
   CardHeader,
   CardTitle,
 } from '@/components/ui/card';
-import {
-  ChartContainer,
-  ChartTooltipContent,
-} from '@/components/ui/chart';
 import type { Part, Transaction } from '@/lib/types';
-import { useAppState } from '@/context/app-state-provider';
+import { useAppState } from '@/context/enhanced-app-state-provider';
+import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
+import { ChartContainer, ChartTooltip, ChartTooltipContent } from '@/components/ui/chart';
 
 const chartConfig = {
   turnover: {
     label: "Turnover Rate",
-    color: "hsl(var(--chart-2))",
+    color: "#10b981",
   },
 };
 
@@ -52,32 +49,29 @@ export function InventoryTurnoverChart({ parts, transactions }: InventoryTurnove
       <CardContent>
        {chartData.length > 0 ? (
           <ChartContainer config={chartConfig} className="h-[350px] w-full">
-            <BarChart data={chartData} margin={{ top: 5, right: 10, left: -10, bottom: 20 }}>
-              <CartesianGrid vertical={false} strokeDasharray="3 3" />
-              <XAxis
-                dataKey="partName"
-                tickLine={false}
+            <BarChart data={chartData} layout="horizontal">
+              <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" />
+              <XAxis 
+                type="number"
+                tick={{ fontSize: 12 }}
                 axisLine={false}
-                tickMargin={8}
-                angle={-45}
-                textAnchor="end"
-                height={100}
-                interval={0}
-                style={{ fontSize: '10px' }}
-              />
-              <YAxis
                 tickLine={false}
+                stroke="#666"
+              />
+              <YAxis 
+                type="category"
+                dataKey="partName" 
+                tick={{ fontSize: 12 }}
                 axisLine={false}
-                tickMargin={8}
+                tickLine={false}
+                width={120}
+                stroke="#666"
               />
-              <Tooltip
-                cursor={true}
-                content={<ChartTooltipContent formatter={(value, name) => `${value}`} />}
-              />
-              <Bar
-                dataKey="turnover"
-                fill="var(--color-turnover)"
-                radius={4}
+              <ChartTooltip content={<ChartTooltipContent />} />
+              <Bar 
+                dataKey="turnover" 
+                fill="#10b981"
+                radius={[0, 4, 4, 0]}
               />
             </BarChart>
           </ChartContainer>

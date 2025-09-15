@@ -22,10 +22,11 @@ import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import { getDataForRole } from '@/lib/data';
 import type { Transaction } from '@/lib/types';
-import { useAppState } from '@/context/app-state-provider';
+import { useAppState } from '@/context/enhanced-app-state-provider';
 import { ArrowDown, ArrowUp, ListFilter, Search } from 'lucide-react';
 import { ToggleGroup, ToggleGroupItem } from '@/components/ui/toggle-group';
 import { cn } from '@/lib/utils';
+import { BlockchainBadge } from '@/components/ui/blockchain-badge';
 
 const roleSpecifics = {
     Manufacturer: {
@@ -116,11 +117,20 @@ export function RecentTransactions() {
             </TableRow>
           </TableHeader>
           <TableBody>
-            {filteredTransactions.slice(0, 5).map((tx) => (
-              <TableRow key={tx.id}>
+            {filteredTransactions.slice(0, 5).map((tx, index) => (
+              <TableRow key={`${tx.id}-${index}`}>
                 <TableCell>
                   <div className="font-medium">{tx.partName}</div>
                   <div className="text-sm text-muted-foreground md:hidden">{new Date(tx.date).toLocaleDateString()}</div>
+                  {tx.blockchainTxHash && tx.etherscanUrl && (
+                    <div className="mt-1">
+                      <BlockchainBadge 
+                        txHash={tx.blockchainTxHash} 
+                        etherscanUrl={tx.etherscanUrl}
+                        orderId={tx.blockchainOrderId}
+                      />
+                    </div>
+                  )}
                 </TableCell>
                 <TableCell className="hidden sm:table-cell">
                   {tx.type === 'supply' ? (

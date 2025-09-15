@@ -3,15 +3,20 @@
 
 import React, { createContext, useContext, useState, ReactNode, useEffect } from 'react';
 import type { Role, Part, Transaction, Shipment, Vendor } from '@/lib/types';
-import { demoParts, demoTransactions, demoShipments, allVendors } from '@/lib/data';
+import { demoParts, demoTransactions, demoShipments, allVendors, getDataForRole } from '@/lib/data';
+import type { WalletInfo } from '@/lib/web3-wallet';
+import { web3WalletService } from '@/lib/web3-wallet';
 
 interface AppStateContextType {
   loggedIn: boolean;
   setLoggedIn: (loggedIn: boolean) => void;
+  isAuthenticated: boolean;
   role: Role | null;
   setRole: (role: Role | null) => void;
   walletConnected: boolean;
   setWalletConnected: (connected: boolean) => void;
+  walletInfo: WalletInfo | null;
+  setWalletInfo: (walletInfo: WalletInfo | null) => void;
   isAdmin: boolean;
   setIsAdmin: (isAdmin: boolean) => void;
 
@@ -33,6 +38,7 @@ export const AppStateProvider = ({ children }: { children: ReactNode }) => {
   const [loggedIn, setLoggedIn] = useState(false);
   const [role, setRole] = useState<Role | null>(null);
   const [walletConnected, setWalletConnected] = useState(false);
+  const [walletInfo, setWalletInfo] = useState<WalletInfo | null>(null);
   const [isAdmin, setIsAdmin] = useState(false);
 
   // User-specific data state
@@ -92,10 +98,11 @@ export const AppStateProvider = ({ children }: { children: ReactNode }) => {
     try {
       const storedState = localStorage.getItem('appState');
       if (storedState) {
-        const { loggedIn, role, walletConnected, isAdmin } = JSON.parse(storedState);
+        const { loggedIn, role, walletConnected, walletInfo, isAdmin } = JSON.parse(storedState);
         setLoggedIn(loggedIn || false);
         setRole(role || null);
         setWalletConnected(walletConnected || false);
+        setWalletInfo(walletInfo || null);
         setIsAdmin(isAdmin || false);
       }
     } catch (error) {
@@ -103,9 +110,28 @@ export const AppStateProvider = ({ children }: { children: ReactNode }) => {
     }
   }, []);
 
+  // On mount, if a wallet is already authorized in the browser, refresh live info
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      try {
+        const info = await web3WalletService.reconnectIfAuthorized();
+        if (!cancelled && info) {
+          setWalletInfo(info);
+          setWalletConnected(true);
+        }
+      } catch (error) {
+        // no-op; stay with whatever is in storage
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
   useEffect(() => {
     // When auth state changes, load the appropriate data
-    const authState = { loggedIn, role, walletConnected, isAdmin };
+    const authState = { loggedIn, role, walletConnected, walletInfo, isAdmin };
     localStorage.setItem('appState', JSON.stringify(authState));
     
     // Admin always sees the full demo data set
@@ -123,12 +149,14 @@ export const AppStateProvider = ({ children }: { children: ReactNode }) => {
                 setParts(parts || []);
                 setTransactions(transactions || []);
                 setShipments(shipments || []);
-                setVendors(vendors || []);
+                // Ensure vendors are always available, even for existing users
+                setVendors(vendors && vendors.length > 0 ? vendors : allVendors.filter(v => v.relationshipType === 'vendor'));
             } else {
-                // New user, start with empty data
-                setParts([]);
-                setTransactions([]);
-                setShipments([]);
+                // New user: seed with role-specific demo data so features like forecasting have choices
+                const seeded = getDataForRole(role, demoParts, demoTransactions, demoShipments);
+                setParts(seeded.parts);
+                setTransactions(seeded.transactions);
+                setShipments(seeded.shipments);
                 // New users should see the list of available vendors to order from.
                 setVendors(allVendors.filter(v => v.relationshipType === 'vendor'));
             }
@@ -140,13 +168,35 @@ export const AppStateProvider = ({ children }: { children: ReactNode }) => {
         // Logged out, clear all data
         clearUserData();
     }
-  }, [loggedIn, role, walletConnected, isAdmin]);
+  }, [loggedIn, role, walletConnected, walletInfo, isAdmin]);
+
+  // Auto-refresh wallet info every 10 seconds when connected
+  useEffect(() => {
+    if (!walletConnected) return;
+    let cancelled = false;
+    const intervalId = setInterval(async () => {
+      try {
+        const info = await web3WalletService.getWalletInfo();
+        if (!cancelled && info) {
+          setWalletInfo(info);
+        }
+      } catch {
+        // ignore transient errors
+      }
+    }, 10000);
+    return () => {
+      cancelled = true;
+      clearInterval(intervalId);
+    };
+  }, [walletConnected, setWalletInfo]);
 
   return (
     <AppStateContext.Provider value={{ 
         loggedIn, setLoggedIn, 
+        isAuthenticated: loggedIn,
         role, setRole, 
         walletConnected, setWalletConnected,
+        walletInfo, setWalletInfo,
         isAdmin, setIsAdmin,
         parts,
         transactions,

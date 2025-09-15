@@ -24,20 +24,23 @@ export const demoParts: Part[] = [
 
 export const demoTransactions: Transaction[] = [
   // Manufacturer
-  { id: 'T001', partName: 'Engine Block Casting', type: 'supply', quantity: 20, date: '2024-07-15', from: 'Global Metals Inc.', to: 'Manufacturer', role: 'Manufacturer' },
-  { id: 'T002', partName: 'Engine Assembly', type: 'demand', quantity: 10, date: '2024-07-14', from: 'Manufacturer', to: 'Auto Parts Supply Co.', role: 'Manufacturer' },
+  { id: 'T001', partName: 'Engine Block Casting', type: 'supply', quantity: 20, date: '2024-07-15', from: 'Global Metals Inc.', to: 'Manufacturer', role: 'Manufacturer', status: 'completed' },
+  { id: 'T002', partName: 'Engine Assembly', type: 'demand', quantity: 10, date: '2024-07-14', from: 'Manufacturer', to: 'Auto Parts Supply Co.', role: 'Manufacturer', status: 'approved' },
   // Supplier
-  { id: 'T003', partName: 'Transmission Assembly', type: 'supply', quantity: 30, date: '2024-07-13', from: 'Apex Automotive Manufacturing', to: 'Supplier', role: 'Supplier' },
-  { id: 'T004', partName: 'Transmission Assembly', type: 'demand', quantity: 15, date: '2024-07-12', from: 'Supplier', to: 'Regional Distribution Hub', role: 'Supplier' },
+  { id: 'T003', partName: 'Transmission Assembly', type: 'supply', quantity: 30, date: '2024-07-13', from: 'Apex Automotive Manufacturing', to: 'Supplier', role: 'Supplier', status: 'completed' },
+  { id: 'T004', partName: 'Transmission Assembly', type: 'demand', quantity: 15, date: '2024-07-12', from: 'Supplier', to: 'Regional Distribution Hub', role: 'Supplier', status: 'pending' },
   // Distributor
-  { id: 'T005', partName: 'Alternator', type: 'supply', quantity: 50, date: '2024-07-11', from: 'Auto Parts Supply Co.', to: 'Distributor', role: 'Distributor' },
-  { id: 'T006', partName: 'Alternator', type: 'demand', quantity: 25, date: '2024-07-10', from: 'Distributor', to: 'Citywide Repair Shops', role: 'Distributor' },
-  { id: 'T007', partName: 'Radiator', type: 'supply', quantity: 60, date: '2024-07-09', from: 'Auto Parts Supply Co.', to: 'Distributor', role: 'Distributor' },
-  { id: 'T008', partName: 'Piston Set', type: 'supply', quantity: 200, date: '2024-07-08', from: 'Apex Automotive Manufacturing', to: 'Supplier', role: 'Supplier' },
+  { id: 'T005', partName: 'Alternator', type: 'supply', quantity: 50, date: '2024-07-11', from: 'Auto Parts Supply Co.', to: 'Distributor', role: 'Distributor', status: 'completed' },
+  { id: 'T006', partName: 'Alternator', type: 'demand', quantity: 25, date: '2024-07-10', from: 'Distributor', to: 'Citywide Repair Shops', role: 'Distributor', status: 'approved' },
+  { id: 'T007', partName: 'Radiator', type: 'supply', quantity: 60, date: '2024-07-09', from: 'Auto Parts Supply Co.', to: 'Distributor', role: 'Distributor', status: 'completed' },
+  { id: 'T008', partName: 'Piston Set', type: 'supply', quantity: 200, date: '2024-07-08', from: 'Apex Automotive Manufacturing', to: 'Supplier', role: 'Supplier', status: 'completed' },
 ];
 
-// Generate a more realistic transaction history for charts
+// Generate a more realistic transaction history for charts (client-only to avoid hydration mismatch)
 const generateInitialTransactions = () => {
+  if (typeof window === 'undefined') {
+    return; // Avoid server-side randomness that causes hydration mismatches
+  }
   const history: Transaction[] = [];
   const partsToTrack = demoParts.slice(0, 5); // Use a subset of parts for history
   const today = new Date();
@@ -68,7 +71,8 @@ const generateInitialTransactions = () => {
         date: date.toISOString().split('T')[0],
         from: type === 'supply' ? 'Source' : role,
         to: type === 'supply' ? role : 'Destination',
-        role: role
+        role: role,
+        status: 'completed' // Historical transactions are completed
       });
     }
   }
@@ -78,7 +82,10 @@ const generateInitialTransactions = () => {
   }
 }
 
-generateInitialTransactions();
+// Call only on client
+if (typeof window !== 'undefined') {
+  generateInitialTransactions();
+}
 
 
 export const demoShipments: Shipment[] = [
@@ -93,7 +100,7 @@ export const demoShipments: Shipment[] = [
     history: [
       { status: 'In Transit', location: 'Mid-Atlantic Ocean', date: '2024-07-25T14:00:00Z' },
       { status: 'In Transit', location: 'Port of Hamburg', date: '2024-07-22T08:30:00Z' },
-      { status: 'Order Placed', location: 'Global Metals Inc.', date: '2024-07-21T16:45:00Z' },
+      { status: 'Pending', location: 'Global Metals Inc.', date: '2024-07-21T16:45:00Z' },
     ],
     role: 'Manufacturer',
   },
@@ -107,9 +114,9 @@ export const demoShipments: Shipment[] = [
     estimatedDelivery: '2024-07-20',
     history: [
         { status: 'Delivered', location: 'Auto Parts Supply Co.', date: '2024-07-20T11:00:00Z' },
-        { status: 'Out for Delivery', location: 'Chicago Distribution Center', date: '2024-07-20T08:00:00Z' },
+        { status: 'In Transit', location: 'Chicago Distribution Center', date: '2024-07-20T08:00:00Z' },
         { status: 'In Transit', location: 'I-94 Highway', date: '2024-07-19T15:20:00Z' },
-        { status: 'Order Placed', location: 'Manufacturer', date: '2024-07-19T10:15:00Z' },
+        { status: 'Pending', location: 'Manufacturer', date: '2024-07-19T10:15:00Z' },
     ],
     role: 'Supplier'
   },
@@ -126,7 +133,7 @@ export const demoShipments: Shipment[] = [
         { status: 'In Transit', location: 'Port of Los Angeles, USA', date: '2024-07-22T18:00:00Z' },
         { status: 'In Transit', location: 'Union Pacific Rail, Denver', date: '2024-07-20T12:00:00Z' },
         { status: 'In Transit', location: 'Central Supplier Hub, Chicago', date: '2024-07-19T11:40:00Z' },
-        { status: 'Order Placed', location: 'Auto Parts Supply Co.', date: '2024-07-18T14:00:00Z' },
+        { status: 'Pending', location: 'Auto Parts Supply Co.', date: '2024-07-18T14:00:00Z' },
     ],
     role: 'Distributor'
   },
@@ -143,41 +150,67 @@ export const allVendors: Vendor[] = [
     { id: 'V004', name: 'Apex Automotive Manufacturing', category: 'Engine Assemblies', onboardingDate: '2022-05-25', contactEmail: 'b2b@apexauto.com', relationshipType: 'vendor', roles: ['Supplier'], walletAddress: wallet(), rating: 4.9, fulfillmentRate: 99, suppliedParts: [demoParts[3], demoParts[4], demoParts[5]] },
     
     // Distributor's Vendors (Suppliers)
-    { id: 'V003', name: 'Auto Parts Supply Co.', category: 'General Components', onboardingDate: '2023-03-10', contactEmail: 'orders@autopartssupply.com', relationshipType: 'vendor', roles: ['Distributor'], walletAddress: wallet(), rating: 4.2, fulfillmentRate: 88, suppliedParts: [demoParts[6], demoParts[7], demoParts[8]] },
-    { id: 'V005', name: 'Regional Distribution Hub', category: 'General Automotive', onboardingDate: '2020-08-01', contactEmail: 'inbound@regionaldist.com', relationshipType: 'vendor', roles: ['Distributor'], walletAddress: wallet(), rating: 4.0, fulfillmentRate: 94, suppliedParts: [demoParts[9], demoParts[10]] },
+    { id: 'V003', name: 'Auto Parts Supply Co.', category: 'General Components', onboardingDate: '2023-03-10', contactEmail: 'orders@autopartssupply.com', relationshipType: 'vendor', roles: ['Distributor'], walletAddress: '0xd083Fc4F2a8CB7Bc506A4Ce2c706A3F5218006d2', rating: 4.2, fulfillmentRate: 88, suppliedParts: [demoParts[6], demoParts[7], demoParts[8]] },
+    { id: 'V005', name: 'Regional Distribution Hub', category: 'General Automotive', onboardingDate: '2020-08-01', contactEmail: 'inbound@regionaldist.com', relationshipType: 'vendor', roles: ['Distributor'], walletAddress: '0x8946099D625BD30B2D6D7f4Ab7A0c85cdC52fF99', rating: 4.0, fulfillmentRate: 94, suppliedParts: [demoParts[9], demoParts[10]] },
     
     // Customers (for various roles)
-    { id: 'C001', name: 'Auto Parts Supply Co.', category: 'Engine Components', onboardingDate: '2023-03-10', contactEmail: 'orders@autopartssupply.com', relationshipType: 'customer', roles: ['Manufacturer'], walletAddress: wallet(), rating: 5.0, fulfillmentRate: 100 },
-    { id: 'C002', name: 'Regional Distribution Hub', category: 'General Automotive', onboardingDate: '2020-08-01', contactEmail: 'inbound@regionaldist.com', relationshipType: 'customer', roles: ['Supplier'], walletAddress: wallet(), rating: 4.6, fulfillmentRate: 97 },
+    { id: 'C001', name: 'Auto Parts Supply Co.', category: 'Engine Components', onboardingDate: '2023-03-10', contactEmail: 'orders@autopartssupply.com', relationshipType: 'customer', roles: ['Manufacturer'], walletAddress: '0xd083Fc4F2a8CB7Bc506A4Ce2c706A3F5218006d2', rating: 5.0, fulfillmentRate: 100 },
+    { id: 'C002', name: 'Regional Distribution Hub', category: 'General Automotive', onboardingDate: '2020-08-01', contactEmail: 'inbound@regionaldist.com', relationshipType: 'customer', roles: ['Supplier'], walletAddress: '0x8946099D625BD30B2D6D7f4Ab7A0c85cdC52fF99', rating: 4.6, fulfillmentRate: 97 },
     { id: 'C003', name: 'Citywide Repair Shops', category: 'Service & Repair', onboardingDate: '2019-06-18', contactEmail: 'parts@citywiderepair.com', relationshipType: 'customer', roles: ['Distributor'], walletAddress: wallet(), rating: 4.8, fulfillmentRate: 100 },
     { id: 'C004', name: 'National Auto Retail', category: 'Retail', onboardingDate: '2021-02-22', contactEmail: 'procurement@nationalauto.com', relationshipType: 'customer', roles: ['Distributor'], walletAddress: wallet(), rating: 4.3, fulfillmentRate: 91 },
 ];
 
 // Helper functions to get role-specific data
-export const getDataForRole = (role: Role | null, allParts: Part[], allTransactions: Transaction[], allShipments: Shipment[]) => {
-    if (!role) return { parts: [], transactions: [], shipments: [] };
+export const getDataForRole = (role: Role | null, allParts: Part[], allTransactions: Transaction[], allShipments: Shipment[], isAdmin: boolean = false, userId?: string) => {
+    if (!role && !isAdmin) return { parts: [], transactions: [], shipments: [] };
+    
+    // Admin users see all data across all roles
+    if (isAdmin) {
+        return {
+            parts: allParts,
+            transactions: allTransactions,
+            shipments: allShipments,
+        };
+    }
+    
+    // Create user-specific data with unique IDs to prevent conflicts
+    const userPrefix = userId ? userId.slice(-4) : 'demo';
     
     const roleTransactions = allTransactions.filter(t => t.role === role || (role === 'Supplier' && t.to === 'Supplier'));
     const roleShipments = allShipments.filter(s => s.role === role);
 
+    // Apply user-specific prefixes to make IDs unique
+    const makeUniqueTransactions = (transactions: Transaction[]) => 
+        transactions.map(tx => ({ ...tx, id: `${tx.id}-${userPrefix}` }));
+    
+    const makeUniqueShipments = (shipments: Shipment[]) => 
+        shipments.map(s => ({ 
+            ...s, 
+            id: `${s.id}-${userPrefix}`,
+            transactionId: s.transactionId ? `${s.transactionId}-${userPrefix}` : undefined
+        }));
+
+    const makeUniqueParts = (parts: Part[]) => 
+        parts.map(p => ({ ...p, id: `${p.id}-${userPrefix}` }));
+
     switch (role) {
         case 'Manufacturer':
             return {
-                parts: allParts.filter(p => ['raw', 'wip', 'finished'].includes(p.type) && !p.source && !p.leadTime),
-                transactions: roleTransactions,
-                shipments: roleShipments,
+                parts: makeUniqueParts(allParts.filter(p => ['raw', 'wip', 'finished'].includes(p.type) && !p.source && !p.leadTime)),
+                transactions: makeUniqueTransactions(roleTransactions),
+                shipments: makeUniqueShipments(roleShipments),
             };
         case 'Supplier':
              return {
-                parts: allParts.filter(p => !!p.source),
-                transactions: roleTransactions,
-                shipments: roleShipments,
+                parts: makeUniqueParts(allParts.filter(p => !!p.source)),
+                transactions: makeUniqueTransactions(roleTransactions),
+                shipments: makeUniqueShipments(roleShipments),
             };
         case 'Distributor':
             return {
-                parts: allParts.filter(p => !!p.leadTime),
-                transactions: roleTransactions,
-                shipments: roleShipments,
+                parts: makeUniqueParts(allParts.filter(p => !!p.leadTime)),
+                transactions: makeUniqueTransactions(roleTransactions),
+                shipments: makeUniqueShipments(roleShipments),
             };
         default:
             return { parts: [], transactions: [], shipments: [] };
@@ -187,8 +220,10 @@ export const getDataForRole = (role: Role | null, allParts: Part[], allTransacti
 export const getVendorsForRole = (role: Role | null, currentVendors: Vendor[]) => {
     if (!role) return { vendors: [], customers: [] };
 
-    const vendors = currentVendors.filter(v => v.roles.includes(role) && v.relationshipType === 'vendor');
-    const customers = currentVendors.filter(v => v.roles.includes(role) && v.relationshipType === 'customer');
+    const hasRole = (v: Vendor) => Array.isArray(v.roles) && v.roles.includes(role);
+
+    const vendors = currentVendors.filter(v => hasRole(v) && v.relationshipType === 'vendor');
+    const customers = currentVendors.filter(v => hasRole(v) && v.relationshipType === 'customer');
 
     return { vendors, customers };
 }
@@ -214,6 +249,7 @@ export function placeOrder(
         from: toVendor.name,
         to: fromRole,
         role: fromRole,
+        status: 'pending', // New orders start as pending
     };
     newTransactions.unshift(newTransaction);
 
@@ -227,10 +263,10 @@ export function placeOrder(
         quantity: quantity,
         from: toVendor.name,
         to: fromRole,
-        status: 'Order Placed',
+        status: 'Pending',
         estimatedDelivery: estDelivery.toISOString().split('T')[0],
         history: [
-            { status: 'Order Placed', location: toVendor.name, date: orderDate.toISOString() }
+            { status: 'Pending', location: toVendor.name, date: orderDate.toISOString() }
         ],
         role: fromRole,
     };
@@ -328,3 +364,4 @@ export const getPartHistory = (part: Part, allTransactions: Transaction[]) => {
 
     return history;
 };
+

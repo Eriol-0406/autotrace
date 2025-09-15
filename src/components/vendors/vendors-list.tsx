@@ -3,7 +3,7 @@
 
 import { useMemo, useState } from 'react';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
-import { useAppState } from '@/context/app-state-provider';
+import { useAppState } from '@/context/enhanced-app-state-provider';
 import { getVendorsForRole } from '@/lib/data';
 import type { Vendor, Role, Part } from '@/lib/types';
 import { Input } from '@/components/ui/input';

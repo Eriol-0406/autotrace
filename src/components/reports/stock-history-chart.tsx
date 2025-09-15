@@ -3,7 +3,6 @@
 
 import * as React from 'react';
 import { useState, useMemo } from 'react';
-import { Line, LineChart, CartesianGrid, XAxis, YAxis, Tooltip } from 'recharts';
 import {
   Card,
   CardContent,
@@ -12,10 +11,6 @@ import {
   CardTitle,
 } from '@/components/ui/card';
 import {
-  ChartContainer,
-  ChartTooltipContent,
-} from '@/components/ui/chart';
-import {
   Select,
   SelectContent,
   SelectItem,
@@ -23,9 +18,11 @@ import {
   SelectValue,
 } from '@/components/ui/select';
 import { getPartHistory } from '@/lib/data';
-import { useAppState } from '@/context/app-state-provider';
+import { useAppState } from '@/context/enhanced-app-state-provider';
 import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
 import { Part } from '@/lib/types';
+import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
+import { ChartContainer, ChartTooltip, ChartTooltipContent } from '@/components/ui/chart';
 
 type TimeRange = 'monthly' | 'quarterly' | 'yearly';
 
@@ -124,8 +121,8 @@ export function StockHistoryChart() {
 
   const chartConfig = {
     stock: {
-      label: "Stock",
-      color: "hsl(var(--primary))",
+      label: "Stock Level",
+      color: "#3b82f6",
     },
   };
 
@@ -163,27 +160,29 @@ export function StockHistoryChart() {
       <CardContent>
         {chartData.length > 0 ? (
           <ChartContainer config={chartConfig} className="h-[300px] w-full">
-            <LineChart data={chartData} margin={{ top: 5, right: 10, left: 10, bottom: 0 }}>
-              <CartesianGrid vertical={false} strokeDasharray="3 3" />
-              <XAxis
-                dataKey="date"
-                tickLine={false}
+            <LineChart data={chartData}>
+              <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" />
+              <XAxis 
+                dataKey="date" 
+                tick={{ fontSize: 12 }}
                 axisLine={false}
-                tickMargin={8}
-              />
-              <YAxis
                 tickLine={false}
-                axisLine={false}
-                tickMargin={8}
-                domain={[0, 'dataMax + 20']}
+                stroke="#666"
               />
-              <Tooltip cursor={false} content={<ChartTooltipContent />} />
-              <Line
-                dataKey="stock"
+              <YAxis 
+                tick={{ fontSize: 12 }}
+                axisLine={false}
+                tickLine={false}
+                stroke="#666"
+              />
+              <ChartTooltip content={<ChartTooltipContent />} />
+              <Line 
                 type="monotone"
-                stroke="var(--color-stock)"
-                strokeWidth={2}
-                dot={true}
+                dataKey="stock" 
+                stroke="#3b82f6"
+                strokeWidth={3}
+                dot={{ fill: "#3b82f6", strokeWidth: 2, r: 4 }}
+                activeDot={{ r: 6, fill: "#1d4ed8" }}
               />
             </LineChart>
           </ChartContainer>
@@ -192,7 +191,6 @@ export function StockHistoryChart() {
               No historical data available.
           </div>
         )}
-
       </CardContent>
     </Card>
   );

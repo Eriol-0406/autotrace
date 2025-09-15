@@ -8,7 +8,7 @@ import {
   CardTitle,
 } from '@/components/ui/card';
 import { AlertCircle } from 'lucide-react';
-import { useAppState } from '@/context/app-state-provider';
+import { useAppState } from '@/context/enhanced-app-state-provider';
 
 const roleSpecifics = {
     Manufacturer: {
@@ -45,8 +45,8 @@ export function StockAlerts() {
             if (backorderedParts.length > 0) {
                 return (
                     <ul className="space-y-3">
-                        {backorderedParts.map((part) => (
-                        <li key={part.id} className="flex justify-between items-center text-sm">
+                        {backorderedParts.map((part, index) => (
+                        <li key={`${part.id}-backorder-${index}`} className="flex justify-between items-center text-sm">
                             <span>{part.name}</span>
                             <span className="font-mono text-destructive">
                             {part.backorders} orders
@@ -62,8 +62,8 @@ export function StockAlerts() {
         if (lowStockParts.length > 0) {
             return (
                 <ul className="space-y-3">
-                {lowStockParts.map((part) => (
-                    <li key={part.id} className="flex justify-between items-center text-sm">
+                {lowStockParts.map((part, index) => (
+                    <li key={`${part.id}-lowstock-${index}`} className="flex justify-between items-center text-sm">
                     <span>{part.name}</span>
                     <span className="font-mono text-destructive">
                         {part.quantity} / {part.reorderPoint}

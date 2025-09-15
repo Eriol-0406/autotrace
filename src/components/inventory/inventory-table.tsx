@@ -22,7 +22,7 @@ import { Badge } from '@/components/ui/badge';
 import { Input } from '@/components/ui/input';
 import { Progress } from '@/components/ui/progress';
 import type { Part } from '@/lib/types';
-import { useAppState } from '@/context/app-state-provider';
+import { useAppState } from '@/context/enhanced-app-state-provider';
 import { Search } from 'lucide-react';
 import { ScrollArea } from '../ui/scroll-area';
 
@@ -84,12 +84,12 @@ const PartTable = ({ parts }: { parts: Part[] }) => {
             </TableRow>
             </TableHeader>
             <TableBody>
-            {filteredParts.map((part) => {
+            {filteredParts.map((part, index) => {
                 const status = getStatus(part);
                 const stockPercentage = Math.round((part.quantity / part.maxStock) * 100);
 
                 return (
-                <TableRow key={part.id}>
+                <TableRow key={`${part.id}-${index}`}>
                     <TableCell>
                     <div className="font-medium">{part.name}</div>
                     <div className="text-sm text-muted-foreground">{part.id}</div>

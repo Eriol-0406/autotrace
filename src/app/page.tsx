@@ -1,16 +1,35 @@
 
 "use client";
 
-import { AppLayout } from '@/components/app-layout';
-import { Boxes, Package, AlertCircle, ArrowDownUp, Factory, Building, Truck } from 'lucide-react';
-import { StatCard } from '@/components/dashboard/stat-card';
-import { StockAlerts } from '@/components/dashboard/stock-alerts';
-import { RecentTransactions } from '@/components/dashboard/recent-transactions';
-import { SupplyForecast } from '@/components/dashboard/supply-forecast';
-import { getDataForRole } from '@/lib/data';
-import { useAppState } from '@/context/app-state-provider';
-import DashboardPage from './dashboard/page';
+import { redirect } from 'next/navigation';
+import { useAppState } from '@/context/enhanced-app-state-provider';
+import { useEffect } from 'react';
 
 export default function Home() {
-    return <DashboardPage />;
+    const { isAuthenticated, isInitialized } = useAppState();
+
+    useEffect(() => {
+        // Wait for auth state to be initialized before redirecting
+        if (isInitialized) {
+            if (!isAuthenticated) {
+                redirect('/login');
+            } else {
+                redirect('/dashboard');
+            }
+        }
+    }, [isAuthenticated, isInitialized]);
+
+    // Show loading state while initializing
+    if (!isInitialized) {
+        return (
+            <div className="flex items-center justify-center min-h-screen">
+                <div className="text-center">
+                    <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary mx-auto mb-4"></div>
+                    <p className="text-muted-foreground">Loading...</p>
+                </div>
+            </div>
+        );
+    }
+
+    return null;
 }

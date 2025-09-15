@@ -12,8 +12,9 @@ import {
   SidebarMenuButton,
   SidebarSeparator,
 } from '@/components/ui/sidebar';
-import { Boxes, FileText, Handshake, LayoutDashboard, Truck } from 'lucide-react';
+import { Boxes, FileText, Handshake, LayoutDashboard, Truck, Link as LinkIcon, Shield, Building } from 'lucide-react';
 import { cn } from '@/lib/utils';
+import { useAppState } from '@/context/enhanced-app-state-provider';
 
 const Logo = () => (
   <svg
@@ -36,6 +37,7 @@ const Logo = () => (
 const menuItems = [
   { href: '/', label: 'Dashboard', icon: LayoutDashboard },
   { href: '/inventory', label: 'Inventory', icon: Boxes },
+  { href: '/blockchain', label: 'Blockchain', icon: LinkIcon },
   { href: '/vendors', label: 'Vendors', icon: Handshake },
   { href: '/tracking', label: 'Tracking', icon: Truck },
   { href: '/reports', label: 'Reports', icon: FileText },
@@ -43,10 +45,17 @@ const menuItems = [
 
 export function AppSidebar() {
   const pathname = usePathname();
+  const { isAdmin } = useAppState();
 
   const isActive = (href: string) => {
     return pathname === href;
   };
+
+  // Admin menu items
+  const adminMenuItems = [
+    { href: '/admin/transactions', label: 'Transaction Approval', icon: Shield },
+    { href: '/admin/entities', label: 'Entity Management', icon: Building },
+  ];
 
   return (
     <Sidebar variant="sidebar" collapsible="icon" className="border-r">
@@ -65,13 +74,40 @@ export function AppSidebar() {
                   tooltip={item.label}
                   className={cn("text-base py-3 px-4", isActive(item.href) && "bg-primary text-primary-foreground hover:bg-primary/90 hover:text-primary-foreground")}
                 >
-                  <Link href={item.href}>
+                  <Link href={item.href} prefetch={false}>
                     <item.icon className="h-6 w-6" />
                     <span className="font-medium">{item.label}</span>
                   </Link>
                 </SidebarMenuButton>
             </SidebarMenuItem>
           ))}
+          
+          {/* Admin Section */}
+          {isAdmin && (
+            <>
+              <SidebarSeparator className="my-4" />
+              <div className="px-4 py-2">
+                <span className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">
+                  Admin
+                </span>
+              </div>
+              {adminMenuItems.map((item) => (
+                <SidebarMenuItem key={item.href}>
+                  <SidebarMenuButton
+                    asChild
+                    isActive={isActive(item.href)}
+                    tooltip={item.label}
+                    className={cn("text-base py-3 px-4", isActive(item.href) && "bg-primary text-primary-foreground hover:bg-primary/90 hover:text-primary-foreground")}
+                  >
+                    <Link href={item.href} prefetch={false}>
+                      <item.icon className="h-6 w-6" />
+                      <span className="font-medium">{item.label}</span>
+                    </Link>
+                  </SidebarMenuButton>
+                </SidebarMenuItem>
+              ))}
+            </>
+          )}
         </SidebarMenu>
       </SidebarContent>
     </Sidebar>

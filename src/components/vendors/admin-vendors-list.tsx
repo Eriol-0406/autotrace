@@ -3,7 +3,7 @@
 
 import { useMemo, useState } from 'react';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
-import { useAppState } from '@/context/app-state-provider';
+import { useAppState } from '@/context/enhanced-app-state-provider';
 import type { Vendor } from '@/lib/types';
 import {
   Table,
@@ -47,24 +47,17 @@ const VendorPerformanceTable = ({ vendors, onRemove }: { vendors: Vendor[], onRe
     const filteredVendors = useMemo(() =>
         vendors.filter(
         (vendor) =>
-            vendor.name.toLowerCase().includes(search.toLowerCase()) ||
-            vendor.category.toLowerCase().includes(search.toLowerCase())
+            (vendor.name && vendor.name.toLowerCase().includes(search.toLowerCase())) ||
+            (vendor.category && vendor.category.toLowerCase().includes(search.toLowerCase()))
         ),
     [vendors, search]);
     
     return (
         <Card>
             <CardHeader>
-                <div className="flex justify-between items-center">
-                    <div>
-                        <CardTitle>All Network Vendors</CardTitle>
-                        <CardDescription>Monitor performance and manage all registered entities.</CardDescription>
-                    </div>
-                     <Button asChild>
-                        <Link href="/vendors/new">
-                            <UserPlus className="mr-2 h-4 w-4" /> Add Vendor
-                        </Link>
-                    </Button>
+                <div>
+                    <CardTitle>All Network Vendors</CardTitle>
+                    <CardDescription>Monitor performance and manage all registered entities.</CardDescription>
                 </div>
                 <div className="relative mt-4">
                     <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
@@ -109,17 +102,17 @@ const VendorPerformanceTable = ({ vendors, onRemove }: { vendors: Vendor[], onRe
                                     <Badge variant="outline" className="capitalize">{vendor.relationshipType}</Badge>
                                 </TableCell>
                                 <TableCell>
-                                    <Badge variant="secondary">{vendor.roles[0]}</Badge>
+                                    <Badge variant="secondary">{vendor.roles && vendor.roles.length > 0 ? vendor.roles[0] : 'N/A'}</Badge>
                                 </TableCell>
                                 <TableCell>
-                                    <Badge variant={vendor.fulfillmentRate >= 95 ? 'default' : 'secondary'} className={vendor.fulfillmentRate >= 95 ? 'bg-green-100 text-green-800' : 'bg-yellow-100 text-yellow-800'}>
-                                        {vendor.fulfillmentRate}%
+                                    <Badge variant={(vendor.fulfillmentRate || 0) >= 95 ? 'default' : 'secondary'} className={(vendor.fulfillmentRate || 0) >= 95 ? 'bg-green-100 text-green-800' : 'bg-yellow-100 text-yellow-800'}>
+                                        {vendor.fulfillmentRate || 0}%
                                     </Badge>
                                 </TableCell>
                                 <TableCell>
                                     <div className="flex items-center gap-1">
                                         <Star className="w-4 h-4 text-yellow-400 fill-yellow-400" />
-                                        <span>{vendor.rating.toFixed(1)}</span>
+                                        <span>{vendor.rating ? vendor.rating.toFixed(1) : '0.0'}</span>
                                     </div>
                                 </TableCell>
                                 <TableCell className="text-right">
@@ -173,7 +166,7 @@ export function AdminVendorsList() {
     const { toast } = useToast();
 
     const handleRemoveVendor = (vendorId: string) => {
-        const vendorToRemove = vendors.find(v => v.id === vendorId);
+        const vendorToRemove = vendors?.find(v => v.id === vendorId);
         if (vendorToRemove) {
             removeVendor(vendorId);
             toast({
@@ -182,6 +175,25 @@ export function AdminVendorsList() {
             });
         }
     };
+
+    // Add safety check for vendors array
+    if (!vendors || vendors.length === 0) {
+        return (
+            <div className="grid gap-6">
+                <Card>
+                    <CardHeader>
+                        <CardTitle>All Network Vendors</CardTitle>
+                        <CardDescription>Monitor performance and manage all registered entities.</CardDescription>
+                    </CardHeader>
+                    <CardContent>
+                        <div className="text-center py-8 text-muted-foreground">
+                            No vendors found. Add vendors to get started.
+                        </div>
+                    </CardContent>
+                </Card>
+            </div>
+        );
+    }
 
     return (
         <div className="grid gap-6">

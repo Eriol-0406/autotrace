@@ -1,7 +1,6 @@
 
 "use client";
 
-import { Bar, BarChart, CartesianGrid, XAxis, YAxis, Tooltip, Legend } from 'recharts';
 import {
   Card,
   CardContent,
@@ -9,21 +8,19 @@ import {
   CardHeader,
   CardTitle,
 } from '@/components/ui/card';
-import {
-  ChartContainer,
-  ChartTooltipContent,
-} from '@/components/ui/chart';
 import type { Transaction } from '@/lib/types';
-import { useAppState } from '@/context/app-state-provider';
+import { useAppState } from '@/context/enhanced-app-state-provider';
+import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
+import { ChartContainer, ChartTooltip, ChartTooltipContent, ChartLegend, ChartLegendContent } from '@/components/ui/chart';
 
 const chartConfig = {
   supply: {
     label: "Supply",
-    color: "hsl(var(--chart-1))",
+    color: "#3b82f6",
   },
   demand: {
     label: "Demand",
-    color: "hsl(var(--chart-2))",
+    color: "#f97316",
   },
 };
 
@@ -78,36 +75,33 @@ export function TransactionVolumeChart({ transactions }: TransactionVolumeChartP
       <CardContent>
         {chartData.length > 0 ? (
           <ChartContainer config={chartConfig} className="h-[300px] w-full">
-            <BarChart data={chartData} margin={{ top: 5, right: 10, left: 10, bottom: 0 }}>
-              <CartesianGrid vertical={false} strokeDasharray="3 3" />
-              <XAxis
-                dataKey="month"
-                tickLine={false}
+            <BarChart data={chartData}>
+              <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" />
+              <XAxis 
+                dataKey="month" 
+                tick={{ fontSize: 12 }}
                 axisLine={false}
-                tickMargin={8}
-              />
-              <YAxis
                 tickLine={false}
+                stroke="#666"
+              />
+              <YAxis 
+                tick={{ fontSize: 12 }}
                 axisLine={false}
-                tickMargin={8}
+                tickLine={false}
+                stroke="#666"
               />
-              <Tooltip
-                cursor={false}
-                content={<ChartTooltipContent />}
-              />
-              <Legend />
-              <Bar
-                dataKey="supply"
-                stackId="a"
-                fill="var(--color-supply)"
+              <ChartTooltip content={<ChartTooltipContent />} />
+              <Bar 
+                dataKey="supply" 
+                fill="#3b82f6"
                 radius={[4, 4, 0, 0]}
               />
-              <Bar
-                dataKey="demand"
-                stackId="a"
-                fill="var(--color-demand)"
+              <Bar 
+                dataKey="demand" 
+                fill="#f97316"
                 radius={[4, 4, 0, 0]}
               />
+              <ChartLegend content={<ChartLegendContent />} />
             </BarChart>
           </ChartContainer>
         ) : (

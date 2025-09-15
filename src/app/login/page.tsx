@@ -10,7 +10,8 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from '@/components/ui/form';
 import { Input } from '@/components/ui/input';
-import { useAppState } from '@/context/app-state-provider';
+import { useAppState } from '@/context/enhanced-app-state-provider';
+import { databaseService } from '@/lib/database';
 import { useToast } from '@/hooks/use-toast';
 import { Eye, EyeOff } from 'lucide-react';
 import { useState } from 'react';
@@ -45,7 +46,7 @@ const Logo = () => (
 
 export default function LoginPage() {
   const router = useRouter();
-  const { setLoggedIn, setRole, setIsAdmin, clearUserData } = useAppState();
+  const { setLoggedIn, setRole, setIsAdmin, clearUserData, setCurrentUser } = useAppState();
   const { toast } = useToast();
   const [showPassword, setShowPassword] = useState(false);
 
@@ -57,7 +58,135 @@ export default function LoginPage() {
     },
   });
 
-  const onSubmit = (data: LoginFormValues) => {
+  const onSubmit = async (data: LoginFormValues) => {
+    try {
+      console.log('🔍 Login attempt for:', data.email);
+      
+      // Check if user exists in database
+      let user = await databaseService.getUserByEmail(data.email);
+      console.log('👤 User found:', user ? 'Yes' : 'No');
+      
+      // Check if this is the admin email
+      const isAdminEmail = data.email.toLowerCase() === 'admin@example.com';
+      console.log('👑 Is admin email:', isAdminEmail);
+      
+      if (!user) {
+        console.log('📝 Creating new user...');
+        // Create new user
+        const userData = {
+          email: data.email,
+          name: isAdminEmail ? 'System Administrator' : data.email.split('@')[0],
+          role: isAdminEmail ? 'Distributor' : null, // Admin gets a default role, others need to select
+          isAdmin: isAdminEmail,
+          walletConnected: false,
+          blockchainRegistered: false,
+          entityName: null,
+        };
+        console.log('📝 User data to create:', userData);
+        
+        user = await databaseService.createUser(userData);
+        console.log('✅ User created:', user ? 'Success' : 'Failed');
+      } else if (isAdminEmail && !user.isAdmin) {
+        console.log('🔧 Updating existing user to admin...');
+        // Update existing user to admin if they login with admin email
+        user = await databaseService.updateUser(user._id, {
+          isAdmin: true,
+          name: 'System Administrator'
+        });
+        console.log('✅ User updated:', user ? 'Success' : 'Failed');
+      }
+
+      if (user) {
+        setCurrentUser(user);
+        setLoggedIn(true);
+        setRole(user.role);
+        setIsAdmin(user.isAdmin);
+        
+        if (!user.role && !user.isAdmin) {
+          // New user needs to select role (but not admin)
+          toast({
+            title: "Welcome!",
+            description: "Please select your business role to continue.",
+          });
+          router.push('/onboarding/role');
+        } else {
+          // Existing user with role OR admin user
+          const welcomeMessage = user.isAdmin 
+            ? "Welcome back, Administrator!" 
+            : `Welcome back, ${user.name}!`;
+          
+          toast({
+            title: "Login successful",
+            description: welcomeMessage,
+          });
+          router.push('/dashboard');
+        }
+      } else {
+        console.error('❌ User is null after create/update operations');
+        throw new Error('Failed to create or retrieve user');
+      }
+    } catch (error) {
+      console.error('❌ Login error:', error);
+      toast({
+        title: "Login failed",
+        description: "Please check your credentials and try again.",
+        variant: "destructive",
+      });
+    }
+  };
+
+  const handleGoogleSuccess = async (credentialResponse: CredentialResponse) => {
+    if (!credentialResponse.credential) return;
+    
+    try {
+      // Decode JWT token to get user info
+      const base64Url = credentialResponse.credential.split('.')[1];
+      const base64 = base64Url.replace(/-/g, '+').replace(/_/g, '/');
+      const jsonPayload = decodeURIComponent(atob(base64).split('').map(function(c) {
+        return '%' + ('00' + c.charCodeAt(0).toString(16)).slice(-2);
+      }).join(''));
+      
+      const googleUser = JSON.parse(jsonPayload);
+      
+      // Check if user exists in database
+      let user = await databaseService.getUserByEmail(googleUser.email);
+      
+      if (!user) {
+        // Create new user from Google data without role - they'll need to select it
+        user = await databaseService.createUser({
+          email: googleUser.email,
+          name: googleUser.name,
+          role: null, // No role assigned yet - user needs to select
+          isAdmin: false,
+          walletConnected: false,
+        });
+      }
+
+      if (user) {
+        setCurrentUser(user);
+        setLoggedIn(true);
+        setRole(user.role);
+        setIsAdmin(user.isAdmin);
+        
+        toast({
+          title: "Login successful",
+          description: `Welcome, ${user.name}!`,
+        });
+        
+        router.push('/dashboard');
+      }
+    } catch (error) {
+      console.error('Google login error:', error);
+      toast({
+        title: "Login failed",
+        description: "Google authentication failed. Please try again.",
+        variant: "destructive",
+      });
+    }
+  };
+
+  // Legacy login for demo purposes
+  const onSubmitLegacy = (data: LoginFormValues) => {
     // In a real app, you'd authenticate against a backend.
     // Here, we'll simulate a successful login.
     if (data.email === 'admin@example.com' && data.password === 'password') {
@@ -83,7 +212,7 @@ export default function LoginPage() {
     }
   };
 
-  const handleGoogleSuccess = (credentialResponse: CredentialResponse) => {
+  const handleGoogleSuccessLegacy = (credentialResponse: CredentialResponse) => {
     console.log('Google Sign-In Success', credentialResponse);
     // In a real app, you would send the credentialResponse.credential to your backend for verification
     // and to get a session token. For this prototype, we'll simulate a successful sign-in.

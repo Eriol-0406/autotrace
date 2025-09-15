@@ -2,7 +2,7 @@
 "use client";
 import { AppLayout } from '@/components/app-layout';
 import { InventoryTable } from '@/components/inventory/inventory-table';
-import { useAppState } from '@/context/app-state-provider';
+import { useAppState } from '@/context/enhanced-app-state-provider';
 import { Button } from '@/components/ui/button';
 import { PlusCircle } from 'lucide-react';
 import { OrderPartsDialog } from '@/components/inventory/order-parts-dialog';
@@ -27,9 +27,9 @@ const roleSpecifics: Record<Role, { title: string; description: string; primaryA
 };
 
 export default function InventoryPage() {
-  const { role } = useAppState();
+  const { role, isAdmin } = useAppState();
 
-  if (!role) {
+  if (!role && !isAdmin) {
     return (
         <AppLayout>
             <div className="flex items-center justify-center h-full">
@@ -39,7 +39,9 @@ export default function InventoryPage() {
     )
   }
 
-  const specifics = roleSpecifics[role] || roleSpecifics.Supplier;
+  const specifics = isAdmin 
+    ? { title: 'System Inventory Audit', description: 'Monitor and audit all inventory across the network.', primaryAction: '' }
+    : (roleSpecifics[role!] || roleSpecifics.Supplier);
 
   return (
     <AppLayout>
@@ -51,12 +53,15 @@ export default function InventoryPage() {
                     {specifics.description}
                 </p>
                 </div>
-                <OrderPartsDialog role={role}>
-                  <Button>
-                      <PlusCircle className="mr-2 h-4 w-4" />
-                      {specifics.primaryAction}
-                  </Button>
-                </OrderPartsDialog>
+                {/* Only show order button for non-admin users */}
+                {!isAdmin && role && (
+                  <OrderPartsDialog role={role}>
+                    <Button>
+                        <PlusCircle className="mr-2 h-4 w-4" />
+                        {specifics.primaryAction}
+                    </Button>
+                  </OrderPartsDialog>
+                )}
             </div>
             <InventoryTable />
         </div>
