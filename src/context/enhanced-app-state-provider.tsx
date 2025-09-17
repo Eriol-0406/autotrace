@@ -2,10 +2,11 @@
 
 import React, { createContext, useContext, useState, ReactNode, useEffect } from 'react';
 import type { Role, Part, Transaction, Shipment, Vendor } from '@/lib/types';
-import { demoParts, demoTransactions, demoShipments, allVendors, getDataForRole } from '@/lib/data';
+import { allVendors } from '@/lib/data';
 import type { WalletInfo } from '@/lib/web3-wallet';
 import { web3WalletService } from '@/lib/web3-wallet';
 import { databaseService, type DatabaseUser } from '@/lib/database';
+import { unifiedDataService } from '@/lib/unified-data-service';
 import { v4 as uuidv4 } from 'uuid';
 
 interface AppStateContextType {
@@ -30,6 +31,7 @@ interface AppStateContextType {
   vendors: Vendor[];
   updateUserData: (data: { parts?: Part[], transactions?: Transaction[], shipments?: Shipment[] }) => void;
   addVendor: (vendor: Vendor) => void;
+  updateVendor: (vendor: Vendor) => void;
   removeVendor: (vendorId: string) => void;
   updateVendorRating: (vendorId: string, rating: number) => void;
   clearUserData: () => void;
@@ -69,8 +71,7 @@ export const EnhancedAppStateProvider = ({ children }: { children: ReactNode }) 
     setWalletInfo(null);
     // Disconnect wallet service
     web3WalletService.disconnect();
-    localStorage.removeItem('userAppData');
-    localStorage.removeItem('authState');
+    localStorage.removeItem('authState'); // Keep auth state for session persistence
     console.log('🧹 User data cleared and wallet disconnected');
   };
 
@@ -99,6 +100,34 @@ export const EnhancedAppStateProvider = ({ children }: { children: ReactNode }) 
 
     initializeAuthState();
   }, []);
+
+  // Real-time sync subscription
+  useEffect(() => {
+    const unsubscribe = unifiedDataService.subscribeToDataChanges(() => {
+      console.log('🔄 Data changed, refreshing...');
+      if (isAdmin) {
+        // Reload admin system data
+        const loadAdminData = async () => {
+          try {
+            const systemData = await unifiedDataService.getSystemData();
+            setParts(systemData.parts);
+            setTransactions(systemData.transactions);
+            setShipments(systemData.shipments);
+            setVendors(systemData.vendors);
+            console.log('✅ Admin data refreshed via real-time sync');
+          } catch (error) {
+            console.error('❌ Error refreshing admin data:', error);
+          }
+        };
+        loadAdminData();
+      } else if (loggedIn && currentUser) {
+        // Reload user data
+        loadFromDatabase();
+      }
+    });
+
+    return unsubscribe;
+  }, [isAdmin, loggedIn, currentUser]);
 
   // Save auth state to localStorage whenever it changes
   useEffect(() => {
@@ -137,54 +166,16 @@ export const EnhancedAppStateProvider = ({ children }: { children: ReactNode }) 
     if (!currentUser) return;
     
     try {
-      // Sync parts
-      for (const part of parts) {
-        if (part._id) {
-          await databaseService.updatePart({ ...part, userId: currentUser._id, _id: part._id });
-        } else {
-          await databaseService.createPart({ ...part, userId: currentUser._id });
-        }
-      }
+      // Use unified data service to update user data
+      await unifiedDataService.updateUserData(currentUser._id, {
+        parts,
+        transactions,
+        shipments
+      });
 
-      // Sync transactions
-      for (const transaction of transactions) {
-        if (transaction._id) {
-          await databaseService.updateTransaction({ ...transaction, userId: currentUser._id, _id: transaction._id });
-        } else {
-          await databaseService.createTransaction({ ...transaction, userId: currentUser._id });
-        }
-      }
-
-      // Sync vendors - check if vendor already exists by id to prevent duplicates
-      for (const vendor of vendors) {
-        if (vendor._id) {
-          // Update existing vendor with MongoDB _id
-          await databaseService.updateVendor({ ...vendor, userId: currentUser._id, _id: vendor._id });
-        } else {
-          // Check if vendor already exists by id field
-          const existingVendor = await databaseService.getVendorById(vendor.id, currentUser._id);
-          if (existingVendor) {
-            // Update existing vendor
-            await databaseService.updateVendor({ ...vendor, userId: currentUser._id, _id: existingVendor._id });
-          } else {
-            // Create new vendor
-            await databaseService.createVendor({ ...vendor, userId: currentUser._id });
-          }
-        }
-      }
-
-      // Sync shipments
-      for (const shipment of shipments) {
-        if (shipment._id) {
-          await databaseService.updateShipment({ ...shipment, userId: currentUser._id, _id: shipment._id });
-        } else {
-          await databaseService.createShipment({ ...shipment, userId: currentUser._id });
-        }
-      }
-
-      console.log('✅ Data synced to database');
+      console.log('✅ Data synced to database via unified data service');
     } catch (error) {
-      console.error('❌ Error syncing to database:', error);
+      console.error('❌ Error syncing to database via unified data service:', error);
     }
   };
 
@@ -192,31 +183,22 @@ export const EnhancedAppStateProvider = ({ children }: { children: ReactNode }) 
     if (!currentUser) return;
     
     try {
-      const [dbParts, dbTransactions, dbShipments] = await Promise.all([
-        databaseService.getParts(currentUser._id),
-        databaseService.getTransactions(currentUser._id),
-        databaseService.getShipments(currentUser._id)
-      ]);
-
-      // Ensure unique parts by ID
-      const uniqueParts = dbParts.filter((part, index, self) => 
-        index === self.findIndex(p => p.id === part.id)
-      );
+      // Use unified data service to get user-specific data
+      const userData = await unifiedDataService.getUserData(currentUser._id);
       
-      // Ensure unique shipments by ID
-      const uniqueShipments = dbShipments.filter((shipment, index, self) => 
-        index === self.findIndex(s => s.id === shipment.id)
-      );
-      
-      setParts(uniqueParts);
-      setTransactions(dbTransactions);
-      // Load vendors from database (system-wide, not user-specific)
-      await loadVendorsFromDatabase();
-      setShipments(uniqueShipments);
+      setParts(userData.parts);
+      setTransactions(userData.transactions);
+      setShipments(userData.shipments);
+      setVendors(userData.vendors);
 
-      console.log('✅ Data loaded from database');
+      console.log('✅ Data loaded from unified data service');
     } catch (error) {
-      console.error('❌ Error loading from database:', error);
+      console.error('❌ Error loading from unified data service:', error);
+      // No fallback - rely on unified data service only
+      setParts([]);
+      setTransactions([]);
+      setShipments([]);
+      setVendors([]);
     }
   };
 
@@ -236,20 +218,31 @@ export const EnhancedAppStateProvider = ({ children }: { children: ReactNode }) 
     setShipments(uniqueShipments);
     setVendors(state.vendors);
 
-    // Only persist data for non-admin users
-    if (!isAdmin) {
-      localStorage.setItem('userAppData', JSON.stringify(state));
+    // Sync to database instead of localStorage
+    if (currentUser && !isAdmin) {
+      syncToDatabase();
     }
   };
 
-  const addVendor = (vendor: Vendor) => {
+  const addVendor = async (vendor: Vendor) => {
     // Refresh vendors from database after adding (since vendors are system-wide)
-    loadVendorsFromDatabase();
+    await loadVendorsFromDatabase();
   };
 
-  const removeVendor = (vendorId: string) => {
+  const updateVendor = async (updatedVendor: Vendor) => {
+    const updatedVendors = vendors.map(v => 
+      v.id === updatedVendor.id ? updatedVendor : v
+    );
+    setVendors(updatedVendors);
+    // Also refresh from database to ensure consistency
+    setTimeout(async () => await loadVendorsFromDatabase(), 100);
+  };
+
+  const removeVendor = async (vendorId: string) => {
     const updatedVendors = vendors.filter(v => v.id !== vendorId);
-    persistFullState({ parts, transactions, shipments, vendors: updatedVendors });
+    setVendors(updatedVendors);
+    // Refresh from database after removal
+    setTimeout(async () => await loadVendorsFromDatabase(), 100);
   };
 
   const updateVendorRating = (vendorId: string, rating: number) => {
@@ -273,7 +266,10 @@ export const EnhancedAppStateProvider = ({ children }: { children: ReactNode }) 
     
     const initWallet = async () => {
       try {
-        const walletInfo = await web3WalletService.reconnectIfAuthorized();
+        // Check if user prefers manual wallet selection every time
+        const forceManualSelection = localStorage.getItem('forceManualWalletSelection') === 'true';
+        
+        const walletInfo = await web3WalletService.reconnectIfAuthorized(forceManualSelection);
         if (!cancelled) {
           setWalletConnected(!!walletInfo);
           setWalletInfo(walletInfo);
@@ -295,82 +291,42 @@ export const EnhancedAppStateProvider = ({ children }: { children: ReactNode }) 
     const authState = { loggedIn, role, walletConnected, walletInfo, isAdmin, currentUser };
     localStorage.setItem('appState', JSON.stringify(authState));
     
-    // Admin always sees the full demo data set
-    if (isAdmin) {
-        // Ensure unique parts by ID
-        const uniqueDemoParts = demoParts.filter((part, index, self) => 
-          index === self.findIndex(p => p.id === part.id)
-        );
-        
-        // Ensure unique shipments by ID
-        const uniqueDemoShipments = demoShipments.filter((shipment, index, self) => 
-          index === self.findIndex(s => s.id === shipment.id)
-        );
-        
-        setParts(uniqueDemoParts);
-        setTransactions(demoTransactions);
-        setShipments(uniqueDemoShipments);
-        // Load vendors from database for all users (admin and client)
-        loadVendorsFromDatabase();
-    } else if (loggedIn && currentUser) {
-        // Load from database first, fallback to localStorage
-        loadFromDatabase().then(() => {
-          // If no data in database, try localStorage
-          if (parts.length === 0) {
-            try {
-                const storedData = localStorage.getItem('userAppData');
-                if(storedData) {
-                    const { parts: storedParts, transactions: storedTransactions, shipments: storedShipments, vendors: storedVendors } = JSON.parse(storedData);
-                    
-                    // Ensure unique parts by ID
-                    const uniqueStoredParts = (storedParts || []).filter((part: Part, index: number, self: Part[]) => 
-                      index === self.findIndex(p => p.id === part.id)
-                    );
-                    
-                    // Ensure unique shipments by ID
-                    const uniqueStoredShipments = (storedShipments || []).filter((shipment: Shipment, index: number, self: Shipment[]) => 
-                      index === self.findIndex(s => s.id === shipment.id)
-                    );
-                    
-                    setParts(uniqueStoredParts);
-                    setTransactions(storedTransactions || []);
-                    setShipments(uniqueStoredShipments);
-                    if (storedVendors && storedVendors.length > 0) {
-                      setVendors(storedVendors);
-                    } else {
-                      // Load from database if no stored vendors
-                      loadVendorsFromDatabase();
-                    }
-                } else {
-                    // New user: seed with role-specific demo data with unique IDs
-                    const seeded = getDataForRole(role, demoParts, demoTransactions, demoShipments, currentUser?._id);
-                    
-                    // Ensure unique parts by ID
-                    const uniqueSeededParts = seeded.parts.filter((part, index, self) => 
-                      index === self.findIndex(p => p.id === part.id)
-                    );
-                    
-                    // Ensure unique shipments by ID
-                    const uniqueSeededShipments = seeded.shipments.filter((shipment, index, self) => 
-                      index === self.findIndex(s => s.id === shipment.id)
-                    );
-                    
-                    setParts(uniqueSeededParts);
-                    setTransactions(seeded.transactions);
-                    setShipments(uniqueSeededShipments);
-                    // Load vendors from database for new users too
-                    loadVendorsFromDatabase();
-                }
-            } catch (error) {
-                console.error("Could not parse user app data from localStorage", error);
-                clearUserData();
-            }
-          }
-        });
-    } else {
-        // Logged out, clear all data
-        clearUserData();
-    }
+    const loadData = async () => {
+      // Admin always sees the full system data set
+      if (isAdmin) {
+        try {
+          // Use unified data service to get system-wide data
+          const systemData = await unifiedDataService.getSystemData();
+          
+          setParts(systemData.parts);
+          setTransactions(systemData.transactions);
+          setShipments(systemData.shipments);
+          setVendors(systemData.vendors);
+          
+          console.log('✅ Admin data loaded from unified data service');
+        } catch (error) {
+          console.error('❌ Error loading admin data from unified service:', error);
+          // No fallback - rely on unified data service only
+          setParts([]);
+          setTransactions([]);
+          setShipments([]);
+          setVendors([]);
+        }
+      } else if (loggedIn && currentUser) {
+          // Load from database using unified data service
+          await loadFromDatabase();
+      } else {
+          // Logged out, clear user-specific data but keep vendors for browsing
+          console.log('👤 Not logged in - clearing user data but keeping vendors for browsing');
+          setParts([]);
+          setTransactions([]);
+          setShipments([]);
+          // Load vendors so users can browse them even when not logged in
+          await loadVendorsFromDatabase();
+      }
+    };
+
+    loadData();
   }, [loggedIn, role, walletConnected, walletInfo, isAdmin, currentUser]);
 
   // Auto-sync to database when data changes (debounced)
@@ -405,6 +361,7 @@ export const EnhancedAppStateProvider = ({ children }: { children: ReactNode }) 
     vendors,
     updateUserData,
     addVendor,
+    updateVendor,
     removeVendor,
     updateVendorRating,
     clearUserData,

@@ -2,7 +2,7 @@
 "use client";
 
 import * as React from 'react';
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useEffect } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { useAppState } from '@/context/enhanced-app-state-provider';
@@ -10,32 +10,113 @@ import { Badge } from '@/components/ui/badge';
 import { Truck, PackageCheck, CheckCircle, Package, Warehouse } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { Button } from '../ui/button';
-import { receiveShipment } from '@/lib/data';
+import { receiveShipment, getVendorsForRole } from '@/lib/data';
+import { smartContractService } from '@/lib/smart-contract';
 import { useToast } from '@/hooks/use-toast';
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Label } from '@/components/ui/label';
 import { Input } from '@/components/ui/input';
 
 export function ShipmentTracker() {
-  const { shipments, parts, transactions, vendors, updateVendorRating, updateUserData, role } = useAppState();
-  const [selectedShipmentId, setSelectedShipmentId] = useState(shipments.length > 0 ? shipments[0].id : '');
+  const { parts, transactions, vendors, updateVendorRating, updateUserData, role, currentUser, walletInfo, isAdmin } = useAppState();
+  const [blockchainShipments, setBlockchainShipments] = useState<any[]>([]);
+  const [selectedShipmentId, setSelectedShipmentId] = useState('');
   const { toast } = useToast();
 
   const [ratingOpen, setRatingOpen] = useState(false);
   const [ratingValue, setRatingValue] = useState<number>(5);
   const [ratingVendorId, setRatingVendorId] = useState<string>('');
 
+  // Load blockchain orders and convert them to shipments
+  useEffect(() => {
+    const loadBlockchainShipments = async () => {
+      if (!walletInfo?.address && !isAdmin) return;
+      
+      try {
+        console.log('🔗 Loading blockchain orders for tracking...');
+        const orderCount = await smartContractService.getOrderCount();
+        console.log(`📊 Found ${orderCount} blockchain orders`);
+        
+        if (orderCount > 0) {
+          const orderPromises = [];
+          for (let i = 1; i <= orderCount; i++) {
+            orderPromises.push(smartContractService.getOrder(i));
+          }
+          
+          const allOrders = await Promise.all(orderPromises);
+          console.log(`📦 Loaded ${allOrders.length} blockchain orders`);
+          
+          // Filter orders for current user (same logic as blockchain page)
+          const currentWalletAddress = walletInfo?.address?.toLowerCase();
+          let filteredOrders = allOrders;
+          
+          if (!isAdmin && currentWalletAddress) {
+            filteredOrders = allOrders.filter(order => 
+              order.buyer.toLowerCase() === currentWalletAddress || 
+              order.seller.toLowerCase() === currentWalletAddress
+            );
+          }
+          
+          console.log(`🎯 Filtered to ${filteredOrders.length} orders for current user`);
+          
+          // Convert blockchain orders to shipments (same logic as blockchain page)
+          const { vendors: roleVendors } = getVendorsForRole(role || 'Distributor', vendors);
+          const shipments = filteredOrders.map((order, index) => ({
+            id: `SHP-${String(index + 1).padStart(3, '0')}`,
+            partName: order.partName,
+            quantity: order.quantity,
+            from: roleVendors[0]?.name || 'Vendor',
+            to: role || 'Distributor',
+            status: order.completed ? 'Delivered' : 'Pending',
+            estimatedDelivery: new Date().toISOString().split('T')[0],
+            history: [
+              { 
+                status: order.completed ? 'Delivered' : 'Pending', 
+                location: roleVendors[0]?.name || 'Vendor', 
+                date: new Date(order.timestamp * 1000).toISOString() 
+              }
+            ],
+            role: role || 'Distributor',
+            blockchainOrderId: order.orderId,
+            blockchainTxHash: order.txHash,
+            etherscanUrl: order.etherscanUrl,
+          }));
+          
+          console.log(`📋 Generated ${shipments.length} shipments from blockchain orders`);
+          setBlockchainShipments(shipments);
+        } else {
+          console.log('📭 No blockchain orders found');
+          setBlockchainShipments([]);
+        }
+      } catch (error) {
+        console.error('❌ Error loading blockchain shipments:', error);
+        setBlockchainShipments([]);
+      }
+    };
+
+    loadBlockchainShipments();
+  }, [walletInfo, isAdmin, role, vendors]);
+
+  // Use blockchain shipments (already filtered by user's wallet)
+  const userShipments = blockchainShipments;
+
   React.useEffect(() => {
-    if (shipments.length > 0 && !shipments.find(s => s.id === selectedShipmentId)) {
-        setSelectedShipmentId(shipments[0].id);
-    } else if (shipments.length === 0) {
+    if (userShipments.length > 0 && !selectedShipmentId) {
+        // Sort shipments by ID and select the first one (SHP-001)
+        const sortedShipments = userShipments.sort((a, b) => {
+          const aNum = parseInt(a.id.replace('SHP-', ''));
+          const bNum = parseInt(b.id.replace('SHP-', ''));
+          return aNum - bNum;
+        });
+        setSelectedShipmentId(sortedShipments[0].id);
+    } else if (userShipments.length === 0) {
         setSelectedShipmentId('');
     }
-  }, [shipments, selectedShipmentId]);
+  }, [userShipments, selectedShipmentId]);
 
   const selectedShipment = useMemo(() =>
-    shipments.find(s => s.id === selectedShipmentId),
-    [selectedShipmentId, shipments]
+    userShipments.find(s => s.id === selectedShipmentId),
+    [selectedShipmentId, userShipments]
   );
   
   const handleReceiveShipment = () => {
@@ -84,7 +165,7 @@ export function ShipmentTracker() {
       }
 
       // Select another shipment if available, or clear selection
-      const nextShipment = shipments.find(s => s.id !== selectedShipment.id);
+      const nextShipment = userShipments.find(s => s.id !== selectedShipment.id);
       setSelectedShipmentId(nextShipment ? nextShipment.id : '');
     } else {
         toast({
@@ -160,16 +241,24 @@ export function ShipmentTracker() {
           <CardContent className="space-y-4">
             <div>
               <label className="text-sm font-medium">Select Shipment</label>
-              <Select value={selectedShipmentId} onValueChange={setSelectedShipmentId} disabled={shipments.length === 0}>
+              <Select value={selectedShipmentId} onValueChange={setSelectedShipmentId} disabled={userShipments.length === 0}>
                 <SelectTrigger>
                   <SelectValue placeholder="Select a shipment" />
                 </SelectTrigger>
                 <SelectContent>
-                  {shipments.map((s, index) => (
-                    <SelectItem key={`${s.id}-${index}`} value={s.id}>
-                      {s.id}: {s.partName}
-                    </SelectItem>
-                  ))}
+                  {userShipments
+                    .filter((s, index, self) => index === self.findIndex(ship => ship.id === s.id))
+                    .sort((a, b) => {
+                      // Extract numeric part of ID for proper sorting
+                      const aNum = parseInt(a.id.replace('SHP-', ''));
+                      const bNum = parseInt(b.id.replace('SHP-', ''));
+                      return aNum - bNum;
+                    })
+                    .map((s) => (
+                      <SelectItem key={s.id} value={s.id}>
+                        {s.id}: {s.partName}
+                      </SelectItem>
+                    ))}
                 </SelectContent>
               </Select>
             </div>
@@ -194,7 +283,7 @@ export function ShipmentTracker() {
                 )}
               </div>
             )}
-            {shipments.length === 0 && !selectedShipment && (
+            {userShipments.length === 0 && !selectedShipment && (
                 <p className="text-sm text-muted-foreground pt-2">No active shipments.</p>
             )}
           </CardContent>

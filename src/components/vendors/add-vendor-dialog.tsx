@@ -21,7 +21,7 @@ interface AddVendorDialogProps {
 }
 
 export function AddVendorDialog({ children }: AddVendorDialogProps) {
-  const { addVendor, role, walletInfo, isAdmin } = useAppState();
+  const { addVendor, role, walletInfo, isAdmin, currentUser } = useAppState();
   const { toast } = useToast();
   
   const [open, setOpen] = useState(false);
@@ -97,13 +97,23 @@ export function AddVendorDialog({ children }: AddVendorDialogProps) {
 
       // Save to database if user is logged in
       try {
-        await databaseService.createVendor({
-          ...newVendor,
-          phone: formData.phone,
-          address: formData.address,
-        });
+        if (currentUser?._id || currentUser?.email) {
+          await databaseService.createVendor({
+            ...newVendor,
+            phone: formData.phone,
+            address: formData.address,
+            userId: currentUser._id || currentUser.email,
+          });
+        } else {
+          console.warn('No user ID available for vendor creation');
+        }
       } catch (dbError) {
-        console.warn('Database save failed:', dbError);
+        console.error('Database save failed:', dbError);
+        toast({
+          title: 'Database Save Failed',
+          description: 'Vendor added locally but failed to save to database.',
+          variant: 'destructive',
+        });
       }
 
       toast({

@@ -1,5 +1,6 @@
 
 "use client";
+import { useState, useEffect } from 'react';
 import { AppLayout } from '@/components/app-layout';
 import { InventoryTurnoverChart } from '@/components/reports/inventory-turnover-chart';
 import { StockHistoryChart } from '@/components/reports/stock-history-chart';
@@ -7,14 +8,16 @@ import { TransactionVolumeChart } from '@/components/reports/transaction-volume-
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { useAppState } from '@/context/enhanced-app-state-provider';
-import { getDataForRole } from '@/lib/data';
+import { getDataForRole, getVendorsForRole } from '@/lib/data';
+import { computeReplenishmentPlan } from '@/lib/forecast';
+import { smartContractService } from '@/lib/smart-contract';
 import { Shield, Download, FileText, BarChart3 } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 
 const roleSpecifics = {
   Manufacturer: {
-    title: 'Production Analytics',
-    description: 'Analyze material consumption and production output.',
+    title: 'Reports Module',
+    description: 'Generate analytical reports on inventory data for decision-making. Export Stock, Transaction, and Forecast reports as CSV.',
     cards: {
       valueTitle: 'Total Inventory Value',
       valueDesc: 'Raw material + finished goods value',
@@ -25,8 +28,8 @@ const roleSpecifics = {
     }
   },
   Supplier: {
-    title: 'Warehouse Analytics',
-    description: 'Visualize inventory data and transaction history.',
+    title: 'Reports Module',
+    description: 'Generate analytical reports on inventory data for decision-making. Export Stock, Transaction, and Forecast reports as CSV.',
     cards: {
         valueTitle: 'Warehouse Inventory Value',
         valueDesc: 'Estimated value of all parts',
@@ -37,8 +40,8 @@ const roleSpecifics = {
     }
   },
   Distributor: {
-    title: 'Sales & Stock Analytics',
-    description: 'Analyze sales trends and fulfillment efficiency.',
+    title: 'Reports Module',
+    description: 'Generate analytical reports on inventory data for decision-making. Export Stock, Transaction, and Forecast reports as CSV.',
     cards: {
         valueTitle: 'Sellable Inventory Value',
         valueDesc: 'Value of customer-facing stock',
@@ -75,8 +78,90 @@ const exportToCSV = (data: any[], filename: string, headers: string[]) => {
 };
 
 const ClientReports = () => {
-  const { role, parts, transactions, currentUser } = useAppState();
+  const { role, currentUser, walletInfo, isAdmin, vendors } = useAppState();
   const { toast } = useToast();
+  const [userParts, setUserParts] = useState<any[]>([]);
+  const [userTransactions, setUserTransactions] = useState<any[]>([]);
+
+  // Load user's actual data from blockchain transactions
+  useEffect(() => {
+    const loadUserData = async () => {
+      if (!walletInfo?.address) return;
+      
+      try {
+        console.log('📊 Loading user data for reports...');
+        const orderCount = await smartContractService.getOrderCount();
+        
+        if (orderCount > 0) {
+          const orderPromises = [];
+          for (let i = 1; i <= orderCount; i++) {
+            orderPromises.push(smartContractService.getOrder(i));
+          }
+          
+          const allOrders = await Promise.all(orderPromises);
+          
+          // Filter orders for current user
+          const currentWalletAddress = walletInfo?.address?.toLowerCase();
+          const userOrders = allOrders.filter(order => 
+            order.buyer.toLowerCase() === currentWalletAddress || 
+            order.seller.toLowerCase() === currentWalletAddress
+          );
+          
+          console.log(`📦 Found ${userOrders.length} orders for current user`);
+          
+          // Convert orders to transactions
+          const { vendors: roleVendors } = getVendorsForRole(role || 'Distributor', vendors);
+          const transactions = userOrders.map((order, index) => ({
+            id: `T-${String(index + 1).padStart(3, '0')}`,
+            partName: order.partName,
+            type: 'supply',
+            quantity: order.quantity,
+            date: new Date(order.timestamp * 1000).toISOString().split('T')[0],
+            from: roleVendors[0]?.name || 'Vendor',
+            to: role || 'Distributor',
+            role: role || 'Distributor',
+            status: order.completed ? 'completed' : 'pending',
+            blockchainOrderId: order.orderId,
+            blockchainTxHash: order.txHash,
+          }));
+          
+          // Generate parts from transactions (aggregate by partName)
+          const partsMap = new Map();
+          transactions.forEach(tx => {
+            const existing = partsMap.get(tx.partName);
+            if (existing) {
+              existing.quantity += tx.quantity;
+            } else {
+              partsMap.set(tx.partName, {
+                id: `P-${String(partsMap.size + 1).padStart(3, '0')}`,
+                name: tx.partName,
+                quantity: tx.quantity,
+                reorderPoint: 10,
+                maxStock: tx.quantity * 2,
+                type: 'finished'
+              });
+            }
+          });
+          
+          const parts = Array.from(partsMap.values());
+          
+          console.log(`📋 Generated ${parts.length} parts and ${transactions.length} transactions from blockchain orders`);
+          setUserParts(parts);
+          setUserTransactions(transactions);
+        } else {
+          console.log('📭 No blockchain orders found');
+          setUserParts([]);
+          setUserTransactions([]);
+        }
+      } catch (error) {
+        console.error('❌ Error loading user data for reports:', error);
+        setUserParts([]);
+        setUserTransactions([]);
+      }
+    };
+
+    loadUserData();
+  }, [walletInfo, role, vendors]);
 
   if (!role) {
     return <p>Loading reports...</p>;
@@ -84,13 +169,13 @@ const ClientReports = () => {
 
   const specifics = roleSpecifics[role] || roleSpecifics.Supplier;
 
-  const totalValue = parts.reduce((sum, part) => sum + part.quantity * 50, 0); // Assuming avg price of $50
-  const outOfStock = parts.filter(p => p.quantity === 0).length;
-  const slowMoving = parts.filter(p => transactions.filter(t => t.partName === p.name).length < 2).length;
+  const totalValue = userParts.reduce((sum, part) => sum + part.quantity * 50, 0); // Assuming avg price of $50
+  const outOfStock = userParts.filter(p => p.quantity === 0).length;
+  const slowMoving = userParts.filter(p => userTransactions.filter(t => t.partName === p.name).length < 2).length;
 
   // Export functions
   const exportStockReport = () => {
-    const stockData = parts.map(part => ({
+    const stockData = userParts.map(part => ({
       partname: part.name,
       quantity: part.quantity,
       reorderpoint: part.reorderPoint,
@@ -111,7 +196,7 @@ const ClientReports = () => {
   };
 
   const exportTransactionReport = () => {
-    const transactionData = transactions.map(tx => ({
+    const transactionData = userTransactions.map(tx => ({
       partname: tx.partName,
       type: tx.type,
       quantity: tx.quantity,
@@ -133,36 +218,33 @@ const ClientReports = () => {
     });
   };
 
-  const exportComplianceReport = () => {
-    const complianceData = transactions
-      .filter(tx => tx.blockchainTxHash) // Only blockchain transactions
-      .map(tx => ({
-        transactionid: tx.id,
-        partname: tx.partName,
-        type: tx.type,
-        quantity: tx.quantity,
-        date: tx.date,
-        from: tx.from,
-        to: tx.to,
-        fromwallet: tx.fromWallet || 'N/A',
-        towallet: tx.toWallet || 'N/A',
-        blockchainorderid: tx.blockchainOrderId || 'N/A',
-        blockchaintxhash: tx.blockchainTxHash,
-        etherscanurl: tx.etherscanUrl || 'N/A',
-        status: tx.status || 'completed',
-        approvedby: tx.approvedBy || 'N/A',
-        approvedat: tx.approvedAt || 'N/A'
-      }));
+  const exportForecastReport = () => {
+    const forecastData = computeReplenishmentPlan(userParts, userTransactions, {
+      lookbackDays: 90,
+      vendorLeadTimeDays: 14,
+      safetyDays: 7
+    }).map(forecast => ({
+      partname: forecast.partName,
+      currentquantity: forecast.currentQuantity,
+      reorderpoint: forecast.reorderPoint,
+      averagedailydemand: forecast.averageDailyDemand,
+      averagedailysupply: forecast.averageDailySupply,
+      netdailyconsumption: forecast.netDailyConsumption,
+      daysuntilreorder: forecast.daysUntilReorderThreshold || 'N/A',
+      neededbydate: forecast.neededByDate || 'N/A',
+      recommendedorderqty: forecast.recommendedOrderQty,
+      status: forecast.recommendedOrderQty > 0 ? 'Order Needed' : 'Sufficient Stock'
+    }));
 
-    exportToCSV(complianceData, `${role}_Compliance_Report`, [
-      'Transaction ID', 'Part Name', 'Type', 'Quantity', 'Date', 'From', 'To', 
-      'From Wallet', 'To Wallet', 'Blockchain Order ID', 'Blockchain TX Hash', 
-      'Etherscan URL', 'Status', 'Approved By', 'Approved At'
+    exportToCSV(forecastData, `${role}_Forecast_Report`, [
+      'Part Name', 'Current Quantity', 'Reorder Point', 'Average Daily Demand', 
+      'Average Daily Supply', 'Net Daily Consumption', 'Days Until Reorder', 
+      'Needed By Date', 'Recommended Order Qty', 'Status'
     ]);
 
     toast({
-      title: 'Compliance Report Exported',
-      description: `Blockchain compliance report for ${role} has been downloaded as CSV.`,
+      title: 'Forecast Report Exported',
+      description: `Stock forecast report for ${role} has been downloaded as CSV.`,
     });
   };
 
@@ -184,11 +266,11 @@ const ClientReports = () => {
           </Button>
           <Button onClick={exportTransactionReport} variant="outline" size="sm">
             <FileText className="h-4 w-4 mr-2" />
-            Transactions
+            Transaction Report
           </Button>
-          <Button onClick={exportComplianceReport} variant="outline" size="sm">
-            <Shield className="h-4 w-4 mr-2" />
-            Compliance
+          <Button onClick={exportForecastReport} variant="outline" size="sm">
+            <BarChart3 className="h-4 w-4 mr-2" />
+            Forecast Report
           </Button>
         </div>
       </div>
@@ -221,19 +303,50 @@ const ClientReports = () => {
               </CardContent>
           </Card>
       </div>
-      <StockHistoryChart />
+      <StockHistoryChart parts={userParts} transactions={userTransactions} />
       <div className="grid gap-6 lg:grid-cols-2">
-        <TransactionVolumeChart transactions={transactions} />
-        <InventoryTurnoverChart parts={parts} transactions={transactions} />
+        <TransactionVolumeChart transactions={userTransactions} />
+        <InventoryTurnoverChart parts={userParts} transactions={userTransactions} />
       </div>
     </div>
   );
 };
 
 const AdminReports = () => {
-    const { role, parts, transactions, shipments, isAdmin } = useAppState();
-    const { parts: roleParts, transactions: roleTransactions } = getDataForRole(role, parts, transactions, shipments, isAdmin);
+    const { role, isAdmin, unifiedDataService } = useAppState();
     const { toast } = useToast();
+    const [systemData, setSystemData] = useState<{
+      parts: any[];
+      transactions: any[];
+      shipments: any[];
+    }>({ parts: [], transactions: [], shipments: [] });
+
+    // Fetch system-wide data for admin reports
+    useEffect(() => {
+      if (isAdmin && unifiedDataService) {
+        const fetchSystemData = async () => {
+          try {
+            const systemData = await unifiedDataService.getSystemData();
+            setSystemData({
+              parts: systemData.parts,
+              transactions: systemData.transactions,
+              shipments: systemData.shipments
+            });
+            console.log('🎯 Admin Reports loaded system data:', {
+              parts: systemData.parts.length,
+              transactions: systemData.transactions.length,
+              shipments: systemData.shipments.length
+            });
+          } catch (error) {
+            console.error('Error fetching system data for reports:', error);
+          }
+        };
+        fetchSystemData();
+      }
+    }, [isAdmin, unifiedDataService]);
+
+    const { parts, transactions, shipments } = systemData;
+    const { parts: roleParts, transactions: roleTransactions } = getDataForRole(role, parts, transactions, shipments, isAdmin);
 
     // Admin export functions
     const exportSystemReport = () => {
@@ -352,7 +465,7 @@ const AdminReports = () => {
             </Button>
           </div>
         </div>
-        <StockHistoryChart />
+        <StockHistoryChart parts={roleParts} transactions={roleTransactions} />
         <div className="grid gap-6 lg:grid-cols-2">
           <TransactionVolumeChart transactions={roleTransactions} />
           <InventoryTurnoverChart parts={roleParts} transactions={roleTransactions} />

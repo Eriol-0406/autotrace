@@ -3,6 +3,7 @@ import './globals.css';
 import { Toaster } from '@/components/ui/toaster';
 import { EnhancedAppStateProvider } from '@/context/enhanced-app-state-provider';
 import { GoogleOAuthProvider } from '@react-oauth/google';
+import { IDGeneratorInitializer } from '@/components/id-generator-initializer';
 
 export const metadata: Metadata = {
   title: 'AutoTrace Lite',
@@ -24,6 +25,7 @@ export default function RootLayout({
       <body suppressHydrationWarning className="font-body antialiased">
         <GoogleOAuthProvider clientId={process.env.NEXT_PUBLIC_GOOGLE_CLIENT_ID!}>
             <EnhancedAppStateProvider>
+            <IDGeneratorInitializer />
             {children}
             </EnhancedAppStateProvider>
         </GoogleOAuthProvider>

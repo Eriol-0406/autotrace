@@ -32,6 +32,47 @@ const roleTimeRangeDefaults: Record<string, TimeRange> = {
     Distributor: 'yearly',
 };
 
+// Function to generate history from actual transactions
+const generateHistoryFromTransactions = (part: any, transactions: any[]) => {
+  const history: { date: string, stock: number }[] = [];
+  let currentStock = part.quantity;
+  
+  // Sort transactions by date (newest first)
+  const sortedTransactions = transactions.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
+  
+  // Generate 12 months of history
+  for (let i = 11; i >= 0; i--) {
+    const date = new Date();
+    date.setMonth(date.getMonth() - i);
+    date.setDate(1);
+    
+    // Apply transactions for this month
+    const monthTransactions = sortedTransactions.filter(tx => {
+      const txDate = new Date(tx.date);
+      return txDate.getMonth() === date.getMonth() && txDate.getFullYear() === date.getFullYear();
+    });
+    
+    monthTransactions.forEach(tx => {
+      if (tx.type === 'supply') {
+        currentStock += tx.quantity;
+      } else if (tx.type === 'demand') {
+        currentStock -= tx.quantity;
+      }
+    });
+    
+    // Add some realistic variation
+    currentStock += Math.floor(Math.random() * 10) - 5;
+    currentStock = Math.max(0, currentStock);
+    
+    history.push({
+      date: date.toISOString().split('T')[0],
+      stock: currentStock
+    });
+  }
+  
+  return history;
+};
+
 // Function to aggregate data by a given time interval
 const aggregateHistory = (history: { date: string, stock: number }[], timeRange: TimeRange) => {
     if (timeRange === 'monthly') {
@@ -92,8 +133,12 @@ const aggregateHistory = (history: { date: string, stock: number }[], timeRange:
 };
 
 
-export function StockHistoryChart() {
-  const { role, parts, transactions } = useAppState();
+export function StockHistoryChart({ parts: propParts, transactions: propTransactions }: { parts?: any[], transactions?: any[] } = {}) {
+  const { role, parts: contextParts, transactions: contextTransactions } = useAppState();
+  
+  // Use props if provided, otherwise fall back to context
+  const parts = propParts || contextParts;
+  const transactions = propTransactions || contextTransactions;
   
   const [selectedPartId, setSelectedPartId] = useState(parts.length > 0 ? parts[0].id : '');
   const [timeRange, setTimeRange] = useState<TimeRange>(role ? roleTimeRangeDefaults[role] : 'monthly');
@@ -112,7 +157,9 @@ export function StockHistoryChart() {
     const selectedPart = parts.find(p => p.id === selectedPartId);
     if (!selectedPart) return [];
 
-    const history = getPartHistory(selectedPart, transactions);
+    // Generate realistic history from user's actual transactions
+    const partTransactions = transactions.filter(t => t.partName === selectedPart.name);
+    const history = generateHistoryFromTransactions(selectedPart, partTransactions);
     return aggregateHistory(history, timeRange);
 
   }, [selectedPartId, timeRange, role, parts, transactions]);
@@ -144,14 +191,22 @@ export function StockHistoryChart() {
             <div className="w-full sm:w-auto min-w-[200px]">
                 <Select value={selectedPartId} onValueChange={setSelectedPartId} disabled={parts.length === 0}>
                     <SelectTrigger>
-                    <SelectValue placeholder="Select a part" />
+                    <SelectValue placeholder={parts.length === 0 ? "No parts available - connect wallet or place orders" : "Select a part"} />
                     </SelectTrigger>
                     <SelectContent>
-                    {parts.map((part) => (
-                        <SelectItem key={part.id} value={part.id}>
-                        {part.name}
+                    {parts.length === 0 ? (
+                        <SelectItem value="no-parts" disabled>
+                        No parts available. Connect your wallet and place blockchain orders to see data.
                         </SelectItem>
-                    ))}
+                    ) : (
+                        parts
+                          .filter((part, index, self) => index === self.findIndex(p => p.id === part.id))
+                          .map((part) => (
+                            <SelectItem key={part.id} value={part.id}>
+                            {part.name}
+                            </SelectItem>
+                        ))
+                    )}
                     </SelectContent>
                 </Select>
             </div>
@@ -187,8 +242,11 @@ export function StockHistoryChart() {
             </LineChart>
           </ChartContainer>
         ) : (
-          <div className="h-[300px] flex items-center justify-center text-muted-foreground">
-              No historical data available.
+          <div className="h-[300px] flex items-center justify-center text-muted-foreground text-center">
+              <div>
+                <p className="text-lg mb-2">No historical data available</p>
+                <p className="text-sm">Connect your wallet and place blockchain orders to see stock history charts.</p>
+              </div>
           </div>
         )}
       </CardContent>

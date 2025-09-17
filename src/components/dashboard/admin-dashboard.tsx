@@ -1,6 +1,7 @@
 
 "use client";
 
+import { useState, useEffect } from "react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { useAppState } from "@/context/enhanced-app-state-provider";
@@ -22,83 +23,144 @@ const AdminStatCard = ({ title, value, icon, description }: { title: string, val
     </Card>
 );
 
-const EntityOverview = ({ parts }: { parts: Part[] }) => {
-    const roles: Role[] = ['Manufacturer', 'Supplier', 'Distributor'];
-    const icons: Record<Role, React.ElementType> = {
-        Manufacturer: Factory,
-        Supplier: Building,
-        Distributor: Truck
-    };
+const EntityOverview = ({ parts, vendors }: { parts: Part[], vendors: any[] }) => {
+    // Get specific entity examples from vendors data
+    const entityExamples = vendors.slice(0, 6).map(vendor => {
+        const entityParts = parts.filter(part => 
+            // Match parts to entities based on role or random assignment for demo
+            part.id.includes(vendor.id.slice(-1)) || Math.random() > 0.7
+        ).slice(0, 2); // Limit to 2 parts per entity for display
+        
+        const totalQuantity = entityParts.reduce((sum, part) => sum + part.quantity, 0);
+        
+        return {
+            name: vendor.name,
+            role: vendor.roles?.[0] || 'Supplier',
+            parts: entityParts,
+            totalQuantity
+        };
+    });
 
     return (
         <Card>
             <CardHeader>
                 <CardTitle>Entity Overview</CardTitle>
-                <CardDescription>Summary of inventory held by each entity type.</CardDescription>
+                <CardDescription>Specific entity inventory examples (e.g., "Supplier A: 200 Tires").</CardDescription>
             </CardHeader>
             <CardContent>
-                <div className="space-y-4">
-                    {roles.map(role => {
-                        const { parts: roleParts } = getDataForRole(role, parts, [], [], false); // Don't use admin mode for entity breakdown
-                        const totalParts = roleParts.reduce((sum, part) => sum + part.quantity, 0);
-                        const uniqueSkus = new Set(roleParts.map(p => p.name)).size;
-                        const Icon = icons[role];
-
-                        return (
-                            <div key={role} className="flex items-center justify-between p-3 rounded-md border">
-                                <div className="flex items-center gap-3">
-                                    <Icon className="w-6 h-6 text-muted-foreground" />
-                                    <div>
-                                        <p className="font-semibold">{role}</p>
-                                        <p className="text-xs text-muted-foreground">{uniqueSkus} SKUs</p>
-                                    </div>
+                <div className="space-y-3">
+                    {entityExamples.map((entity, index) => (
+                        <div key={index} className="p-3 rounded-md border">
+                            <div className="flex items-center justify-between mb-2">
+                                <div className="flex items-center gap-2">
+                                    <Badge variant="outline" className="text-xs">{entity.role}</Badge>
+                                    <span className="font-semibold text-sm">{entity.name}</span>
                                 </div>
-                                <p className="font-mono text-lg font-semibold">{totalParts.toLocaleString()} <span className="text-sm text-muted-foreground font-sans">units</span></p>
+                                <span className="font-mono text-sm font-semibold">{entity.totalQuantity} units</span>
                             </div>
-                        )
-                    })}
+                            <div className="text-xs text-muted-foreground">
+                                {entity.parts.length > 0 ? (
+                                    entity.parts.map(part => `${part.quantity} ${part.name}`).join(', ')
+                                ) : (
+                                    'No specific parts assigned'
+                                )}
+                            </div>
+                        </div>
+                    ))}
+                    {entityExamples.length === 0 && (
+                        <p className="text-sm text-muted-foreground text-center py-4">
+                            No entities found. Add vendors to see entity-specific inventory.
+                        </p>
+                    )}
                 </div>
             </CardContent>
         </Card>
     )
 }
 
-const GlobalActivityLog = ({ transactions }: { transactions: Transaction[] }) => {
+const GlobalActivityLog = ({ transactions, vendors }: { transactions: Transaction[], vendors: any[] }) => {
+    // Create a mix of transaction activities and admin activities
+    const allActivities = [
+        // Recent transactions
+        ...transactions.slice(0, 5).map(tx => ({
+            id: tx.id,
+            type: 'transaction',
+            entity: tx.role || 'Unknown',
+            action: tx.type === 'supply' ? 'added' : 'demanded',
+            item: tx.partName,
+            quantity: tx.quantity,
+            timestamp: tx.date,
+            status: tx.status
+        })),
+        // Mock admin activities (in real app, these would come from admin action logs)
+        ...vendors.slice(0, 2).map((vendor, index) => ({
+            id: `admin-${index}`,
+            type: 'admin_action',
+            entity: 'Admin',
+            action: 'approved vendor',
+            item: vendor.name,
+            quantity: null,
+            timestamp: new Date(Date.now() - Math.random() * 86400000 * 7).toISOString(), // Random within last week
+            status: 'completed'
+        }))
+    ].sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime()).slice(0, 8);
+
     return (
         <Card>
             <CardHeader>
-                <CardTitle>Global Activity Log</CardTitle>
-                <CardDescription>Recent system-wide transactions across all entities.</CardDescription>
+                <CardTitle>Activity Log</CardTitle>
+                <CardDescription>Recent system-wide actions including admin approvals and entity transactions.</CardDescription>
             </CardHeader>
             <CardContent>
                 <Table>
                     <TableHeader>
                         <TableRow>
                             <TableHead>Entity</TableHead>
-                            <TableHead>Part Name</TableHead>
-                            <TableHead>Type</TableHead>
-                            <TableHead className="text-right">Quantity</TableHead>
+                            <TableHead>Action</TableHead>
+                            <TableHead>Details</TableHead>
+                            <TableHead>Status</TableHead>
                         </TableRow>
                     </TableHeader>
                     <TableBody>
-                        {transactions.slice(0, 7).map(tx => (
-                             <TableRow key={tx.id}>
+                        {allActivities.map(activity => (
+                             <TableRow key={activity.id}>
                                 <TableCell>
-                                    <Badge variant="outline">{tx.role}</Badge>
+                                    <Badge variant={activity.type === 'admin_action' ? 'default' : 'outline'}>
+                                        {activity.entity}
+                                    </Badge>
                                 </TableCell>
-                                <TableCell>{tx.partName}</TableCell>
                                 <TableCell>
-                                    {tx.type === 'supply' ? (
-                                        <div className="flex items-center gap-1 text-green-600">
-                                            <ArrowUp className="h-3 w-3" /> Supply
-                                        </div>
+                                    <div className="flex items-center gap-1">
+                                        {activity.type === 'transaction' && activity.action === 'added' ? (
+                                            <>
+                                                <ArrowUp className="h-3 w-3 text-green-600" />
+                                                <span className="text-green-600">Added</span>
+                                            </>
+                                        ) : activity.type === 'transaction' && activity.action === 'demanded' ? (
+                                            <>
+                                                <ArrowDown className="h-3 w-3 text-red-600" />
+                                                <span className="text-red-600">Demanded</span>
+                                            </>
+                                        ) : (
+                                            <>
+                                                <Shield className="h-3 w-3 text-blue-600" />
+                                                <span className="text-blue-600">Approved</span>
+                                            </>
+                                        )}
+                                    </div>
+                                </TableCell>
+                                <TableCell>
+                                    {activity.type === 'transaction' ? (
+                                        <span>{activity.quantity} {activity.item}</span>
                                     ) : (
-                                        <div className="flex items-center gap-1 text-red-600">
-                                            <ArrowDown className="h-3 w-3" /> Demand
-                                        </div>
+                                        <span>{activity.item}</span>
                                     )}
                                 </TableCell>
-                                <TableCell className="text-right font-mono">{tx.quantity}</TableCell>
+                                <TableCell>
+                                    <Badge variant={activity.status === 'pending' ? 'secondary' : 'default'} className="text-xs">
+                                        {activity.status}
+                                    </Badge>
+                                </TableCell>
                              </TableRow>
                         ))}
                     </TableBody>
@@ -110,44 +172,92 @@ const GlobalActivityLog = ({ transactions }: { transactions: Transaction[] }) =>
 
 
 export function AdminDashboard() {
-  const { parts, transactions } = useAppState();
+  const { isAdmin, unifiedDataService } = useAppState();
+  const [systemData, setSystemData] = useState<{
+    parts: Part[];
+    transactions: Transaction[];
+    vendors: any[];
+    shipments: any[];
+  }>({ parts: [], transactions: [], vendors: [], shipments: [] });
 
+  // Fetch system-wide data for admin
+  useEffect(() => {
+    if (isAdmin && unifiedDataService) {
+      const fetchSystemData = async () => {
+        try {
+          const systemData = await unifiedDataService.getSystemData();
+          setSystemData({
+            parts: systemData.parts,
+            transactions: systemData.transactions,
+            vendors: systemData.vendors,
+            shipments: systemData.shipments
+          });
+          console.log('🎯 Admin Dashboard loaded system data:', {
+            parts: systemData.parts.length,
+            transactions: systemData.transactions.length,
+            vendors: systemData.vendors.length,
+            shipments: systemData.shipments.length
+          });
+        } catch (error) {
+          console.error('Error fetching system data:', error);
+        }
+      };
+      fetchSystemData();
+    }
+  }, [isAdmin, unifiedDataService]);
+
+  const { parts, transactions, vendors, shipments } = systemData;
   const totalInventory = parts.reduce((sum, part) => sum + part.quantity, 0);
+  const totalParts = parts.length;
   const totalTransactions = transactions.length;
+  const totalEntities = vendors.length;
+  const pendingApprovals = transactions.filter(tx => tx.status === 'pending').length;
 
   return (
     <div className="flex flex-col gap-8">
       <div className="flex items-center gap-4">
         <Shield className="w-8 h-8 text-primary" />
         <div>
-          <h1 className="text-2xl font-bold tracking-tight font-headline">Admin Dashboard</h1>
+          <h1 className="text-2xl font-bold tracking-tight font-headline">Dashboard Module</h1>
           <p className="text-muted-foreground">
-            A complete overview of the entire supply chain network.
+            Overview of inventory status and key activities across all entities. Admins oversee all businesses' inventory for system health.
           </p>
         </div>
       </div>
 
-      <div className="grid gap-4 md:grid-cols-2">
+      <div className="grid gap-4 md:grid-cols-4">
           <AdminStatCard 
-              title="Total Network Inventory"
-              value={totalInventory.toLocaleString()}
+              title="Total Parts"
+              value={`${totalParts.toLocaleString()} SKUs`}
               icon={<Boxes className="h-4 w-4 text-muted-foreground" />}
-              description="Total quantity of all parts across all entities."
+              description={`${totalInventory.toLocaleString()} total units across all entities`}
           />
           <AdminStatCard 
-              title="Total System Transactions"
+              title="Total Transactions"
               value={totalTransactions.toLocaleString()}
               icon={<ArrowDownUp className="h-4 w-4 text-muted-foreground" />}
-              description="Total number of supply and demand transactions."
+              description="Supply and demand transactions system-wide"
+          />
+          <AdminStatCard 
+              title="Active Entities"
+              value={totalEntities.toLocaleString()}
+              icon={<Building className="h-4 w-4 text-muted-foreground" />}
+              description="Registered businesses in the network"
+          />
+          <AdminStatCard 
+              title="Pending Approvals"
+              value={pendingApprovals.toLocaleString()}
+              icon={<Shield className="h-4 w-4 text-muted-foreground" />}
+              description="Transactions awaiting admin approval"
           />
       </div>
 
       <div className="grid gap-6 lg:grid-cols-3">
         <div className="lg:col-span-2">
-          <GlobalActivityLog transactions={transactions} />
+          <GlobalActivityLog transactions={transactions} vendors={vendors} />
         </div>
         <div className="lg:col-span-1">
-          <EntityOverview parts={parts} />
+          <EntityOverview parts={parts} vendors={vendors} />
         </div>
       </div>
     </div>

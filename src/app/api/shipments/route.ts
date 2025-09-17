@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import connectDB from '@/lib/mongodb';
 import Shipment from '@/lib/models/Shipment';
+import IDGenerator from '@/lib/id-generator';
 
 export async function GET(request: NextRequest) {
   try {
@@ -8,12 +9,19 @@ export async function GET(request: NextRequest) {
     
     const { searchParams } = new URL(request.url);
     const userId = searchParams.get('userId');
+    const all = searchParams.get('all');
+    
+    if (all === 'true') {
+      // Admin access - get all shipments from all users, sorted by ID
+      const shipments = await Shipment.find({}).sort({ id: 1 });
+      return NextResponse.json(shipments);
+    }
     
     if (!userId) {
       return NextResponse.json({ error: 'User ID is required' }, { status: 400 });
     }
     
-    const shipments = await Shipment.find({ userId }).sort({ createdAt: -1 });
+    const shipments = await Shipment.find({ userId }).sort({ id: 1 });
     return NextResponse.json(shipments);
   } catch (error) {
     console.error('Error fetching shipments:', error);
@@ -26,6 +34,12 @@ export async function POST(request: NextRequest) {
     await connectDB();
     
     const body = await request.json();
+    
+    // Generate proper shipment ID if not provided
+    if (!body.id) {
+      body.id = IDGenerator.generateShipmentId();
+    }
+    
     const shipment = new Shipment(body);
     
     await shipment.save();

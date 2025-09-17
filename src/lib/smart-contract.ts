@@ -313,9 +313,27 @@ export class SmartContractService {
       };
     } catch (error) {
       console.error('Error creating order:', error);
-      console.log('⚠️ Contract not available, creating demo order');
       
-      // Create a demo order when contract is not available
+      // Check if user rejected the transaction - re-throw these errors
+      if (error && typeof error === 'object' && 'code' in error) {
+        if ((error as any).code === 'ACTION_REJECTED' || (error as any).code === 4001) {
+          console.log('🚫 User rejected transaction - re-throwing error');
+          throw error; // Re-throw user rejection errors
+        }
+      }
+      
+      // Check for other user rejection patterns
+      if (error && typeof error === 'object' && 'message' in error) {
+        const message = (error as any).message.toLowerCase();
+        if (message.includes('user denied') || message.includes('user rejected') || message.includes('cancelled')) {
+          console.log('🚫 User rejected transaction (message pattern) - re-throwing error');
+          throw error; // Re-throw user rejection errors
+        }
+      }
+      
+      console.log('⚠️ Contract/network error - creating demo order as fallback');
+      
+      // Only create demo order for actual contract/network errors, not user rejections
       const demoOrderId = Math.floor(Math.random() * 1000) + 1;
       const demoTxHash = '0x' + Math.random().toString(16).substring(2, 66);
       const demoEtherscanUrl = this.getEtherscanUrl(demoTxHash);

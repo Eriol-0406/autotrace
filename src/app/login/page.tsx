@@ -76,7 +76,7 @@ export default function LoginPage() {
         const userData = {
           email: data.email,
           name: isAdminEmail ? 'System Administrator' : data.email.split('@')[0],
-          role: isAdminEmail ? 'Distributor' : null, // Admin gets a default role, others need to select
+          role: isAdminEmail ? 'Distributor' as const : null, // Admin gets a default role, others need to select
           isAdmin: isAdminEmail,
           walletConnected: false,
           blockchainRegistered: false,
@@ -159,6 +159,8 @@ export default function LoginPage() {
           role: null, // No role assigned yet - user needs to select
           isAdmin: false,
           walletConnected: false,
+          blockchainRegistered: false,
+          entityName: null,
         });
       }
 

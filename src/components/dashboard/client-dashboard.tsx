@@ -43,43 +43,56 @@ const roleSpecifics = {
 };
 
 export function ClientDashboard() {
-  const { role, parts, transactions } = useAppState();
+  const { role, parts, transactions, currentUser, walletInfo } = useAppState();
   
   if (!role) {
     return <div className="flex items-center justify-center h-full"><p>Loading data...</p></div>
   }
 
-  const { parts: roleParts, transactions: roleTransactions } = getDataForRole(role, parts, transactions, []);
+  // Framework requirement: Filter by user's wallet for B2B context
+  const userWallet = walletInfo?.address;
+  const userId = currentUser?.id;
+  
+  const { parts: userParts, transactions: userTransactions } = getDataForRole(
+    role, 
+    parts, 
+    transactions, 
+    [], // shipments not needed for dashboard
+    false, // not admin
+    userId,
+    userWallet // Pass wallet for filtering
+  );
   const specifics = roleSpecifics[role] || roleSpecifics.Manufacturer;
   const RoleIcon = specifics.icon;
 
+  // Framework requirement: Display user's current inventory and wallet-specific data
   const getStatValues = () => {
-    if (!roleParts) return [0,0,0,0];
-    const lowStockItems = roleParts.filter(
+    if (!userParts) return [0,0,0,0];
+    const lowStockItems = userParts.filter(
       (part) => part.quantity < part.reorderPoint
     ).length;
 
     switch (role) {
       case 'Manufacturer':
         return [
-          roleParts.reduce((sum, part) => sum + part.quantity, 0).toLocaleString(),
-          new Set(roleParts.map(p => p.name)).size,
+          userParts.reduce((sum, part) => sum + part.quantity, 0).toLocaleString(),
+          new Set(userParts.map(p => p.name)).size,
           lowStockItems,
-          roleTransactions.filter(t => t.type === 'demand').length
+          userTransactions.filter(t => t.type === 'demand').length
         ];
       case 'Supplier':
         return [
-          roleParts.reduce((sum, part) => sum + part.quantity, 0).toLocaleString(),
-          roleParts.length,
+          userParts.reduce((sum, part) => sum + part.quantity, 0).toLocaleString(),
+          userParts.length,
           lowStockItems,
-          roleTransactions.length
+          userTransactions.length
         ];
       case 'Distributor':
         return [
-          roleParts.reduce((sum, part) => sum + part.quantity, 0).toLocaleString(),
-          roleParts.length,
-          roleParts.reduce((sum, part) => sum + (part.backorders || 0), 0),
-          roleTransactions.filter(t => t.type === 'demand').length
+          userParts.reduce((sum, part) => sum + part.quantity, 0).toLocaleString(),
+          userParts.length,
+          userParts.reduce((sum, part) => sum + (part.backorders || 0), 0),
+          userTransactions.filter(t => t.type === 'demand').length
         ];
       default:
         return [0, 0, 0, 0];

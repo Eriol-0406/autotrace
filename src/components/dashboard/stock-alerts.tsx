@@ -9,6 +9,7 @@ import {
 } from '@/components/ui/card';
 import { AlertCircle } from 'lucide-react';
 import { useAppState } from '@/context/enhanced-app-state-provider';
+import { getDataForRole } from '@/lib/data';
 
 const roleSpecifics = {
     Manufacturer: {
@@ -26,7 +27,7 @@ const roleSpecifics = {
 };
 
 export function StockAlerts() {
-    const { role, parts } = useAppState();
+    const { role, parts, currentUser, walletInfo } = useAppState();
 
     if (!role) {
         return null; // Or a loading skeleton
@@ -34,11 +35,25 @@ export function StockAlerts() {
     
     const specifics = roleSpecifics[role] || roleSpecifics.Supplier;
 
-    const lowStockParts = parts.filter(
+    // Framework requirement: Filter alerts by user.wallet
+    const userWallet = walletInfo?.address;
+    const userId = currentUser?.id;
+    
+    const { parts: userParts } = getDataForRole(
+        role, 
+        parts, 
+        [], // transactions not needed for alerts
+        [], // shipments not needed for alerts
+        false, // not admin
+        userId,
+        userWallet // Pass wallet for filtering
+    );
+
+    const lowStockParts = userParts.filter(
         (part) => part.quantity < part.reorderPoint
     );
 
-    const backorderedParts = parts.filter(p => p.backorders && p.backorders > 0);
+    const backorderedParts = userParts.filter(p => p.backorders && p.backorders > 0);
 
     const renderContent = () => {
         if (role === 'Distributor') {

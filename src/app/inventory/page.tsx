@@ -4,25 +4,30 @@ import { AppLayout } from '@/components/app-layout';
 import { InventoryTable } from '@/components/inventory/inventory-table';
 import { useAppState } from '@/context/enhanced-app-state-provider';
 import { Button } from '@/components/ui/button';
-import { PlusCircle } from 'lucide-react';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { PlusCircle, ArrowDown, ArrowUp, History } from 'lucide-react';
 import { OrderPartsDialog } from '@/components/inventory/order-parts-dialog';
+import { DemandTransactionDialog } from '@/components/inventory/demand-transaction-dialog';
+import { SupplyTransactionDialog } from '@/components/inventory/supply-transaction-dialog';
+import { TransactionHistory } from '@/components/inventory/transaction-history';
+import { AdminInventoryModule } from '@/components/inventory/admin-inventory-module';
 import type { Role } from '@/lib/types';
 
-const roleSpecifics: Record<Role, { title: string; description: string; primaryAction: string }> = {
+const roleSpecifics: Record<Role, { title: string; description: string; context: string }> = {
   Manufacturer: {
-    title: 'Production Inventory',
-    description: 'Manage raw materials, work-in-progress, and finished goods.',
-    primaryAction: 'Order Raw Materials',
+    title: 'Inventory Transactions Module',
+    description: 'Manage inventory stock through Demand and Supply transactions - the primary mechanism for B2B inventory flow.',
+    context: 'Demand: Request parts from other businesses. Supply: Add stock to inventory. Transaction History: View past transactions.',
   },
   Supplier: {
-    title: 'Warehouse Inventory',
-    description: 'A complete overview of all parts in your warehouse.',
-    primaryAction: 'Order from Manufacturer',
+    title: 'Inventory Transactions Module',
+    description: 'Manage inventory stock through Demand and Supply transactions - the primary mechanism for B2B inventory flow.',
+    context: 'Demand: Request parts from other businesses. Supply: Add stock to inventory. Transaction History: View past transactions.',
   },
   Distributor: {
-    title: 'Distribution Stock',
-    description: 'Manage fulfillable stock and customer backorders.',
-    primaryAction: 'Reorder from Supplier',
+    title: 'Inventory Transactions Module',
+    description: 'Manage inventory stock through Demand and Supply transactions - the primary mechanism for B2B inventory flow.',
+    context: 'Demand: Request parts from other businesses. Supply: Add stock to inventory. Transaction History: View past transactions.',
   },
 };
 
@@ -40,7 +45,11 @@ export default function InventoryPage() {
   }
 
   const specifics = isAdmin 
-    ? { title: 'System Inventory Audit', description: 'Monitor and audit all inventory across the network.', primaryAction: '' }
+    ? { 
+        title: 'Inventory Transactions Module (Admin Oversight)', 
+        description: 'Admin oversight of all inventory transactions system-wide. Admins ensure transaction integrity.',
+        context: 'View all transactions, approve pending transactions, and analyze transaction trends across all entities.'
+      }
     : (roleSpecifics[role!] || roleSpecifics.Supplier);
 
   return (
@@ -52,18 +61,48 @@ export default function InventoryPage() {
                 <p className="text-muted-foreground">
                     {specifics.description}
                 </p>
+                <p className="text-sm text-muted-foreground mt-1">
+                    <strong>B2B Context:</strong> {specifics.context}
+                </p>
                 </div>
-                {/* Only show order button for non-admin users */}
+                {/* Framework-compliant transaction actions for non-admin users */}
                 {!isAdmin && role && (
-                  <OrderPartsDialog role={role}>
-                    <Button>
-                        <PlusCircle className="mr-2 h-4 w-4" />
-                        {specifics.primaryAction}
-                    </Button>
-                  </OrderPartsDialog>
+                  <div className="flex gap-2">
+                    <DemandTransactionDialog role={role}>
+                      <Button variant="outline">
+                          <ArrowDown className="mr-2 h-4 w-4 text-red-500" />
+                          Demand Transaction
+                      </Button>
+                    </DemandTransactionDialog>
+                    <SupplyTransactionDialog role={role}>
+                      <Button variant="outline">
+                          <ArrowUp className="mr-2 h-4 w-4 text-green-500" />
+                          Supply Transaction
+                      </Button>
+                    </SupplyTransactionDialog>
+                  </div>
                 )}
             </div>
-            <InventoryTable />
+            
+            {/* Framework-compliant modules */}
+            {isAdmin ? (
+              <AdminInventoryModule />
+            ) : role ? (
+              <Tabs defaultValue="inventory" className="w-full">
+                <TabsList>
+                  <TabsTrigger value="inventory">Current Inventory</TabsTrigger>
+                  <TabsTrigger value="history">Transaction History</TabsTrigger>
+                </TabsList>
+                <TabsContent value="inventory" className="space-y-4">
+                  <InventoryTable />
+                </TabsContent>
+                <TabsContent value="history" className="space-y-4">
+                  <TransactionHistory />
+                </TabsContent>
+              </Tabs>
+            ) : (
+              <InventoryTable />
+            )}
         </div>
     </AppLayout>
   );

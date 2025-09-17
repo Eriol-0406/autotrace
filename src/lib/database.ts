@@ -1,4 +1,5 @@
 import { Part, Transaction, Vendor, Shipment } from '@/lib/types';
+import IDGenerator from './id-generator';
 
 export interface DatabaseUser {
   _id: string;
@@ -9,7 +10,7 @@ export interface DatabaseUser {
   walletAddress?: string;
   walletConnected: boolean;
   blockchainRegistered?: boolean;
-  entityName?: string;
+  entityName?: string | null;
   createdAt?: Date;
   updatedAt?: Date;
 }
@@ -231,6 +232,51 @@ class DatabaseService {
     } catch (error) {
       console.error('Error deleting vendor:', error);
       return false;
+    }
+  }
+
+  // Admin methods for system-wide data
+  async getAllParts(): Promise<Part[]> {
+    try {
+      const response = await fetch(`${this.baseUrl}/parts?all=true`);
+      if (!response.ok) return [];
+      return await response.json();
+    } catch (error) {
+      console.error('Error fetching all parts:', error);
+      return [];
+    }
+  }
+
+  async getAllTransactions(): Promise<Transaction[]> {
+    try {
+      const response = await fetch(`${this.baseUrl}/transactions?all=true`);
+      if (!response.ok) return [];
+      return await response.json();
+    } catch (error) {
+      console.error('Error fetching all transactions:', error);
+      return [];
+    }
+  }
+
+  async getAllShipments(): Promise<Shipment[]> {
+    try {
+      const response = await fetch(`${this.baseUrl}/shipments?all=true`);
+      if (!response.ok) return [];
+      return await response.json();
+    } catch (error) {
+      console.error('Error fetching all shipments:', error);
+      return [];
+    }
+  }
+
+  async getUsers(): Promise<DatabaseUser[]> {
+    try {
+      const response = await fetch(`${this.baseUrl}/users?all=true`);
+      if (!response.ok) return [];
+      return await response.json();
+    } catch (error) {
+      console.error('Error fetching all users:', error);
+      return [];
     }
   }
 

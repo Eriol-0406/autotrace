@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import connectDB from '@/lib/mongodb';
 import Part from '@/lib/models/Part';
+import IDGenerator from '@/lib/id-generator';
 
 export async function GET(request: NextRequest) {
   try {
@@ -8,12 +9,19 @@ export async function GET(request: NextRequest) {
     
     const { searchParams } = new URL(request.url);
     const userId = searchParams.get('userId');
+    const all = searchParams.get('all');
+    
+    if (all === 'true') {
+      // Admin access - get all parts from all users, sorted by ID
+      const parts = await Part.find({}).sort({ id: 1 });
+      return NextResponse.json(parts);
+    }
     
     if (!userId) {
       return NextResponse.json({ error: 'User ID is required' }, { status: 400 });
     }
     
-    const parts = await Part.find({ userId });
+    const parts = await Part.find({ userId }).sort({ id: 1 });
     return NextResponse.json(parts);
   } catch (error) {
     console.error('Error fetching parts:', error);
@@ -26,6 +34,12 @@ export async function POST(request: NextRequest) {
     await connectDB();
     
     const body = await request.json();
+    
+    // Generate proper part ID if not provided
+    if (!body.id) {
+      body.id = IDGenerator.generatePartId();
+    }
+    
     const part = new Part(body);
     
     await part.save();

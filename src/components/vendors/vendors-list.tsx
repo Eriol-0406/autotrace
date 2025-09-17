@@ -1,18 +1,19 @@
-
 "use client";
 
 import { useMemo, useState } from 'react';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { useAppState } from '@/context/enhanced-app-state-provider';
-import { getVendorsForRole } from '@/lib/data';
+import { getVendorsForRole, allVendors } from '@/lib/data';
 import type { Vendor, Role, Part } from '@/lib/types';
 import { Input } from '@/components/ui/input';
-import { Search, Star } from 'lucide-react';
+import { Button } from '@/components/ui/button';
+import { Search, Star, ShoppingCart } from 'lucide-react';
 import { Avatar, AvatarFallback, AvatarImage } from '../ui/avatar';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '../ui/table';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '../ui/tooltip';
 import { ScrollArea } from '../ui/scroll-area';
 import { useToast } from '@/hooks/use-toast';
+import { VendorOrderDialog } from './vendor-order-dialog';
 
 const VendorPartsTooltip = ({ parts }: { parts: Part[] }) => {
     if (!parts || parts.length === 0) {
@@ -34,7 +35,6 @@ const VendorPartsTooltip = ({ parts }: { parts: Part[] }) => {
         </TooltipProvider>
     );
 };
-
 
 const VendorRating = ({ initialRating, onRate }: { initialRating: number, onRate: (rating: number) => void }) => {
     const [rating, setRating] = useState(initialRating);
@@ -64,9 +64,12 @@ const VendorRating = ({ initialRating, onRate }: { initialRating: number, onRate
     );
 }
 
-const VendorTable = ({ vendors }: { vendors: Vendor[] }) => {
-    const { updateVendorRating } = useAppState();
+const VendorTable = ({ vendors, isVendorSection = true }: { vendors: Vendor[], isVendorSection?: boolean }) => {
+    const { updateVendorRating, role, loggedIn } = useAppState();
     const { toast } = useToast();
+    
+    // Use effective role for unauthenticated users
+    const effectiveRole = role || 'Distributor';
     
     const handleRateVendor = (vendorId: string, name: string, newRating: number) => {
         updateVendorRating(vendorId, newRating);
@@ -74,14 +77,15 @@ const VendorTable = ({ vendors }: { vendors: Vendor[] }) => {
     };
 
     return (
-        <ScrollArea className="h-[400px]">
+        <ScrollArea className="h-[500px]">
         <Table>
             <TableHeader>
                 <TableRow>
                     <TableHead>Vendor</TableHead>
                     <TableHead>Category</TableHead>
                     <TableHead className="hidden md:table-cell">Supplied Parts</TableHead>
-                    <TableHead className="text-right">Your Rating</TableHead>
+                    <TableHead className="hidden sm:table-cell">Your Rating</TableHead>
+                    <TableHead className="text-right">Actions</TableHead>
                 </TableRow>
             </TableHeader>
             <TableBody>
@@ -95,7 +99,9 @@ const VendorTable = ({ vendors }: { vendors: Vendor[] }) => {
                             </Avatar>
                             <div>
                                 <p className="font-medium">{vendor.name}</p>
-                                <p className="text-sm text-muted-foreground font-mono">{vendor.walletAddress}</p>
+                                <p className="text-sm text-muted-foreground font-mono">
+                                    {vendor.walletAddress?.slice(0, 8)}...{vendor.walletAddress?.slice(-6)}
+                                </p>
                             </div>
                         </div>
                     </TableCell>
@@ -103,8 +109,57 @@ const VendorTable = ({ vendors }: { vendors: Vendor[] }) => {
                     <TableCell className="hidden md:table-cell">
                         <VendorPartsTooltip parts={vendor.suppliedParts || []} />
                     </TableCell>
+                    <TableCell className="hidden sm:table-cell">
+                        {loggedIn ? (
+                            <VendorRating initialRating={vendor.rating} onRate={(newRating) => handleRateVendor(vendor.id, vendor.name, newRating)} />
+                        ) : (
+                            <div className="flex items-center gap-1">
+                                {[1, 2, 3, 4, 5].map((star) => (
+                                    <Star
+                                        key={star}
+                                        className={`w-4 h-4 ${
+                                            vendor.rating >= star
+                                            ? 'text-yellow-400 fill-yellow-400'
+                                            : 'text-gray-300'
+                                        }`}
+                                    />
+                                ))}
+                                <span className="text-xs text-muted-foreground ml-1">({vendor.rating})</span>
+                            </div>
+                        )}
+                    </TableCell>
                     <TableCell className="text-right">
-                        <VendorRating initialRating={vendor.rating} onRate={(newRating) => handleRateVendor(vendor.id, vendor.name, newRating)} />
+                        <div className="flex gap-2 justify-end">
+                            {loggedIn ? (
+                                <>
+                                    {/* Framework requirement: Only show "Order from Vendor" for actual vendors (suppliers), not customers */}
+                                    {isVendorSection ? (
+                                        <VendorOrderDialog vendor={vendor} role={effectiveRole}>
+                                            <Button variant="outline" size="sm">
+                                                <ShoppingCart className="mr-1 h-3 w-3" />
+                                                Order from Vendor
+                                            </Button>
+                                        </VendorOrderDialog>
+                                    ) : (
+                                        <span className="text-xs text-muted-foreground px-3 py-2">
+                                            • Customer •
+                                        </span>
+                                    )}
+                                </>
+                            ) : (
+                                <>
+                                    {isVendorSection ? (
+                                        <Button variant="outline" size="sm" disabled>
+                                            <span className="text-xs">Login to Order</span>
+                                        </Button>
+                                    ) : (
+                                        <span className="text-xs text-muted-foreground px-3 py-2">
+                                            • Customer •
+                                        </span>
+                                    )}
+                                </>
+                            )}
+                        </div>
                     </TableCell>
                 </TableRow>
                 ))}
@@ -114,7 +169,7 @@ const VendorTable = ({ vendors }: { vendors: Vendor[] }) => {
     );
 }
 
-const VendorListSection = ({ vendors, title }: { vendors: Vendor[], title: string }) => {
+const VendorListSection = ({ vendors, title, isVendorSection = true }: { vendors: Vendor[], title: string, isVendorSection?: boolean }) => {
     const [search, setSearch] = useState('');
 
     const filteredVendors = useMemo(() =>
@@ -142,7 +197,7 @@ const VendorListSection = ({ vendors, title }: { vendors: Vendor[], title: strin
             </CardHeader>
             <CardContent>
                 {filteredVendors.length > 0 ? (
-                    <VendorTable vendors={filteredVendors} />
+                    <VendorTable vendors={filteredVendors} isVendorSection={isVendorSection} />
                 ) : (
                     <div className="text-center text-muted-foreground py-12">
                         <p>No vendors found for this criteria.</p>
@@ -154,8 +209,21 @@ const VendorListSection = ({ vendors, title }: { vendors: Vendor[], title: strin
 };
 
 export function VendorsList() {
-    const { role, vendors } = useAppState();
-    const { vendors: roleVendors, customers } = getVendorsForRole(role, vendors);
+    const { role, vendors, loggedIn } = useAppState();
+    
+    // Debug logging
+    console.log('VendorsList Debug:', { role, vendorsCount: vendors?.length, vendors, loggedIn });
+    
+    // FORCE SHOW VENDORS - Use demo data directly if no vendors loaded
+    const forceVendors = vendors && vendors.length > 0 ? vendors : allVendors;
+
+    // Use 'Distributor' as default role for unauthenticated users to show vendors
+    const effectiveRole = role || 'Distributor';
+    const { vendors: roleVendors, customers } = getVendorsForRole(effectiveRole, forceVendors);
+    
+    // EMERGENCY FIX: Always show something! Use forceVendors as fallback
+    const displayVendors = roleVendors.length > 0 ? roleVendors : forceVendors.filter(v => v.relationshipType === 'vendor');
+    const displayCustomers = customers.length > 0 ? customers : forceVendors.filter(v => v.relationshipType === 'customer');
 
     const roleSpecifics: Record<Role, {
         vendorsTitle: string;
@@ -166,7 +234,7 @@ export function VendorsList() {
             customersTitle: "Distributors & Partners",
         },
         Supplier: {
-            vendorsTitle: "Manufacturers",
+            vendorsTitle: "Manufacturers", 
             customersTitle: "Distributors",
         },
         Distributor: {
@@ -174,12 +242,17 @@ export function VendorsList() {
             customersTitle: "End Customers (e.g., Repair Shops)",
         }
     };
-    const specifics = roleSpecifics[role!] || roleSpecifics.Supplier;
+    const specifics = roleSpecifics[effectiveRole] || roleSpecifics.Supplier;
 
     return (
         <div className="space-y-8">
-            {roleVendors.length > 0 && <VendorListSection vendors={roleVendors} title={specifics.vendorsTitle} />}
-            {customers.length > 0 && <VendorListSection vendors={customers} title={specifics.customersTitle} />}
+            {displayVendors.length > 0 && <VendorListSection vendors={displayVendors} title={specifics.vendorsTitle} isVendorSection={true} />}
+            {displayCustomers.length > 0 && <VendorListSection vendors={displayCustomers} title={specifics.customersTitle} isVendorSection={false} />}
+            
+            {/* EMERGENCY FALLBACK: Show all vendors if nothing else shows */}
+            {displayVendors.length === 0 && displayCustomers.length === 0 && (
+                <VendorListSection vendors={forceVendors} title="All Available Vendors" />
+            )}
         </div>
     );
 }

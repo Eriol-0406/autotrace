@@ -23,6 +23,7 @@ import { Input } from '@/components/ui/input';
 import { Progress } from '@/components/ui/progress';
 import type { Part } from '@/lib/types';
 import { useAppState } from '@/context/enhanced-app-state-provider';
+import { getDataForRole } from '@/lib/data';
 import { Search } from 'lucide-react';
 import { ScrollArea } from '../ui/scroll-area';
 
@@ -84,12 +85,14 @@ const PartTable = ({ parts }: { parts: Part[] }) => {
             </TableRow>
             </TableHeader>
             <TableBody>
-            {filteredParts.map((part, index) => {
+            {filteredParts
+              .filter((part, index, self) => index === self.findIndex(p => p.id === part.id))
+              .map((part) => {
                 const status = getStatus(part);
                 const stockPercentage = Math.round((part.quantity / part.maxStock) * 100);
 
                 return (
-                <TableRow key={`${part.id}-${index}`}>
+                <TableRow key={part.id}>
                     <TableCell>
                     <div className="font-medium">{part.name}</div>
                     <div className="text-sm text-muted-foreground">{part.id}</div>
@@ -119,16 +122,27 @@ const PartTable = ({ parts }: { parts: Part[] }) => {
 
 
 export function InventoryTable() {
-  const { role, parts } = useAppState();
+  const { role, parts, currentUser, walletInfo, isAdmin } = useAppState();
+
+  // Framework requirement: Filter inventory by user's wallet
+  const userWallet = walletInfo?.address;
+  const userId = currentUser?._id || currentUser?.email;
+  
+  const { parts: userParts } = getDataForRole(
+    role || 'Distributor', 
+    userId || '',
+    userWallet, // Pass wallet for filtering
+    isAdmin
+  );
 
   const manufacturerParts = useMemo(() => {
-      if (!parts) return { raw: [], wip: [], finished: [] };
+      if (!userParts) return { raw: [], wip: [], finished: [] };
       return {
-          raw: parts.filter(p => p.type === 'raw'),
-          wip: parts.filter(p => p.type === 'wip'),
-          finished: parts.filter(p => p.type === 'finished'),
+          raw: userParts.filter(p => p.type === 'raw'),
+          wip: userParts.filter(p => p.type === 'wip'),
+          finished: userParts.filter(p => p.type === 'finished'),
       }
-  }, [parts]);
+  }, [userParts]);
 
   if (!role) {
       return null; // or loading state
@@ -170,7 +184,7 @@ export function InventoryTable() {
         <CardDescription>A complete overview of all parts in your inventory.</CardDescription>
       </CardHeader>
       <CardContent>
-        <PartTable parts={parts} />
+        <PartTable parts={userParts} />
       </CardContent>
     </Card>
   );

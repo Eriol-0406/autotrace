@@ -1,4 +1,3 @@
-
 "use client"
 
 import { useState } from 'react';
@@ -26,69 +25,57 @@ import {
 import { Input } from '@/components/ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { useToast } from '@/hooks/use-toast';
-import { getVendorsForRole, placeOrder, demoParts, allVendors } from '@/lib/data';
-import { useEffect } from 'react';
-import type { Role, Vendor, Part } from '@/lib/types';
 import { useAppState } from '@/context/enhanced-app-state-provider';
 import { smartContractService } from '@/lib/smart-contract';
-import { web3WalletService } from '@/lib/web3-wallet';
-import { ExternalLink, Loader2 } from 'lucide-react';
+import { demoParts } from '@/lib/data';
+import type { Role, Vendor } from '@/lib/types';
+import { ExternalLink, Loader2, ShoppingCart } from 'lucide-react';
 
 const orderSchema = z.object({
-  vendorId: z.string().min(1, 'Please select a vendor.'),
   partId: z.string().min(1, 'Please select a part.'),
   quantity: z.coerce.number().min(1, 'Quantity must be at least 1.'),
 });
 
 type OrderFormValues = z.infer<typeof orderSchema>;
 
-interface OrderPartsDialogProps {
+interface VendorOrderDialogProps {
     children: React.ReactNode;
+    vendor: Vendor;
     role: Role;
 }
 
-const roleOrderContext: Record<Role, { vendorRole: 'vendor' | 'customer'; orderablePartsRole: Role }> = {
-    Manufacturer: { vendorRole: 'vendor', orderablePartsRole: 'Supplier' }, // Manuf. orders raw materials from suppliers
-    Supplier: { vendorRole: 'vendor', orderablePartsRole: 'Manufacturer' }, // Supplier orders finished goods from manuf.
-    Distributor: { vendorRole: 'vendor', orderablePartsRole: 'Supplier' }, // Distributor orders stock from suppliers
-};
-
-export function OrderPartsDialog({ children, role }: OrderPartsDialogProps) {
+export function VendorOrderDialog({ children, vendor, role }: VendorOrderDialogProps) {
   const [open, setOpen] = useState(false);
   const [isProcessing, setIsProcessing] = useState(false);
   const [blockchainTx, setBlockchainTx] = useState<{txHash: string; etherscanUrl: string} | null>(null);
   const { toast } = useToast();
-  const { parts, transactions, shipments, vendors, updateUserData, walletConnected } = useAppState();
+  const { walletConnected, updateUserData, parts, transactions, shipments } = useAppState();
 
-  const { vendors: availableVendors } = getVendorsForRole(role, vendors);
-  const displayedVendors = (availableVendors.length > 0 ? availableVendors : allVendors.filter(v => v.relationshipType === 'vendor'));
-  
-  // Determine which parts are orderable based on the current role's vendors
-  // For this demo, we'll assume they can order any "finished" good from the demo data
-  // In a real app, this would be determined by the selected vendor's actual catalog
-  const orderableParts = demoParts.filter(p => p.type === 'finished' || p.type === 'raw');
-
+  // Framework requirement: Create orders to vendors for parts
+  const availableParts = vendor.suppliedParts && vendor.suppliedParts.length > 0 
+    ? vendor.suppliedParts 
+    : demoParts.filter(p => p.type === 'finished' || p.type === 'raw');
 
   const form = useForm<OrderFormValues>({
     resolver: zodResolver(orderSchema),
-    defaultValues: { vendorId: '', partId: '', quantity: 100 },
+    defaultValues: { 
+      partId: '', 
+      quantity: 50
+    },
   });
 
   const onSubmit = async (data: OrderFormValues) => {
-    const vendor = displayedVendors.find(v => v.id === data.vendorId);
-    // Find part from demo data as that's our "master catalog"
-    const partToOrder = demoParts.find(p => p.id === data.partId);
+    const part = availableParts.find(p => p.id === data.partId);
 
-    if (!vendor || !partToOrder) {
-        toast({ title: 'Error', description: 'Invalid vendor or part selected.', variant: 'destructive' });
+    if (!part) {
+        toast({ title: 'Error', description: 'Invalid part selected.', variant: 'destructive' });
         return;
     }
 
-    // Check if wallet is connected
     if (!walletConnected) {
         toast({ 
           title: 'Wallet Not Connected', 
-          description: 'Please connect your Web3 wallet to place blockchain orders.', 
+          description: 'Please connect your Web3 wallet to place orders.', 
           variant: 'destructive' 
         });
         return;
@@ -98,20 +85,10 @@ export function OrderPartsDialog({ children, role }: OrderPartsDialogProps) {
     setBlockchainTx(null);
 
     try {
-      // Fallback: If vendors array is empty, use availableVendors instead
-      const vendorsToUse = vendors.length > 0 ? vendors : displayedVendors;
-      
-      // Get vendor's wallet address
-      const vendorWalletAddress = await smartContractService.getVendorWalletAddress(vendor.id, vendorsToUse);
-      
-      if (vendorWalletAddress === '0x0000000000000000000000000000000000000000') {
-        throw new Error('Vendor wallet address not found');
-      }
-
-      // Create blockchain order
+      // Framework requirement: Create orders to vendors, recorded as transactions
       const blockchainResult = await smartContractService.createOrder(
-        vendorWalletAddress,
-        partToOrder.name,
+        vendor.walletAddress || '0x0000000000000000000000000000000000000000',
+        part.name,
         data.quantity
       );
 
@@ -121,32 +98,38 @@ export function OrderPartsDialog({ children, role }: OrderPartsDialogProps) {
         etherscanUrl: blockchainResult.etherscanUrl
       });
 
-      // Create local order for tracking ONLY after blockchain success
-      const newTransaction = placeOrder(
-        partToOrder.name,
-        data.quantity,
-        'demand',
-        role,
-        vendor.name,
-        role,
-        (await web3WalletService.getWalletInfo())?.address || '',
-        vendor.walletAddress || ''
-      );
+      // Create local transaction record ONLY after blockchain success
+      const newTransaction = {
+        id: `T-${String(Math.floor(Math.random() * 900) + 100)}`,
+        partName: part.name,
+        type: 'demand' as const,
+        quantity: data.quantity,
+        date: new Date().toISOString().split('T')[0],
+        from: role,
+        to: vendor.name,
+        role: role,
+        status: 'pending' as const,
+        fromWallet: undefined, // Will be filled by current user's wallet
+        toWallet: vendor.walletAddress,
+        invoiceNumber: `INV-2024-${Date.now().toString().slice(-6)}`,
+        blockchainOrderId: blockchainResult.orderId,
+        blockchainTxHash: blockchainResult.txHash,
+        etherscanUrl: blockchainResult.etherscanUrl
+      };
 
-      // Add blockchain data to the transaction ONLY after blockchain success
-      newTransaction.blockchainOrderId = blockchainResult.orderId;
-      newTransaction.blockchainTxHash = blockchainResult.txHash;
+      // Update user data ONLY after blockchain success
+      updateUserData({
+        parts,
+        transactions: [...transactions, newTransaction],
+        shipments
+      });
 
-      // Update the user data ONLY after blockchain success
-      const updatedTransactions = [...transactions, newTransaction];
-      updateUserData({ parts, transactions: updatedTransactions, shipments });
-      
       // Show success toast ONLY after blockchain success
       toast({
-        title: 'Blockchain Order Created! 🎉',
+        title: 'Vendor Order Created! 🛒',
         description: (
           <div className="space-y-2">
-            <p>Your order for {data.quantity} units of {partToOrder.name} from {vendor.name} has been recorded on the blockchain.</p>
+            <p>Order for {data.quantity} units of {part.name} from {vendor.name} has been recorded on the blockchain.</p>
             <div className="flex items-center gap-2">
               <span className="text-sm">Transaction Hash:</span>
               <a 
@@ -162,18 +145,19 @@ export function OrderPartsDialog({ children, role }: OrderPartsDialogProps) {
           </div>
         ),
       });
-      // Close dialog after success
+      
       setOpen(false);
+      form.reset();
       
     } catch (error) {
-      console.error('Error creating blockchain order:', error);
+      console.error('Error creating vendor order:', error);
       
       // Check if user rejected the transaction
       if (error && typeof error === 'object' && 'code' in error) {
         if ((error as any).code === 'ACTION_REJECTED' || (error as any).code === 4001) {
           toast({
             title: 'Transaction Cancelled',
-            description: 'You cancelled the blockchain transaction. No order was created.',
+            description: 'You cancelled the blockchain transaction. No vendor order was created.',
             variant: 'default',
           });
           return; // Don't show as destructive error
@@ -182,22 +166,14 @@ export function OrderPartsDialog({ children, role }: OrderPartsDialogProps) {
       
       // Handle other errors
       toast({
-        title: 'Blockchain Order Failed',
-        description: `Failed to create blockchain order: ${error instanceof Error ? error.message : String(error)}`,
+        title: 'Vendor Order Failed',
+        description: `Failed to create vendor order: ${error instanceof Error ? error.message : String(error)}`,
         variant: 'destructive',
       });
     } finally {
       setIsProcessing(false);
     }
   };
-
-  // Clear previous tx and reset form when the dialog opens
-  useEffect(() => {
-    if (open) {
-      setBlockchainTx(null);
-      form.reset({ vendorId: '', partId: '', quantity: 100 });
-    }
-  }, [open]);
 
   return (
     <Dialog open={open} onOpenChange={setOpen}>
@@ -206,58 +182,49 @@ export function OrderPartsDialog({ children, role }: OrderPartsDialogProps) {
       </DialogTrigger>
       <DialogContent className="sm:max-w-md">
         <DialogHeader>
-          <DialogTitle>Order Parts</DialogTitle>
+          <DialogTitle>Order from {vendor.name}</DialogTitle>
           <DialogDescription>
-            Place a new order with one of your vendors.
+            Create an order for parts from this vendor. The order will be recorded as a transaction.
           </DialogDescription>
-        <div className="p-3 bg-green-50 border border-green-200 rounded-md">
-          <p className="text-sm text-green-800">
-            <strong>🔗 Real Blockchain:</strong> Connected to Sepolia testnet. Orders will be created with real transaction hashes.
-          </p>
-        </div>
+          <div className="p-3 bg-blue-50 border border-blue-200 rounded-md">
+            <p className="text-sm text-blue-800">
+              <strong>🛒 Framework:</strong> Create orders to vendors for parts (e.g., "Order 50 Batteries from Supplier A"), recorded as transactions.
+            </p>
+          </div>
+          <div className="p-3 bg-gray-50 border border-gray-200 rounded-md">
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="text-sm font-medium">{vendor.name}</p>
+                <p className="text-xs text-muted-foreground">{vendor.category}</p>
+              </div>
+              <div className="text-right">
+                <p className="text-xs text-muted-foreground">Wallet:</p>
+                <p className="text-xs font-mono">{vendor.walletAddress?.slice(0, 8)}...{vendor.walletAddress?.slice(-6)}</p>
+              </div>
+            </div>
+          </div>
         </DialogHeader>
         <Form {...form}>
           <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
             <FormField
               control={form.control}
-              name="vendorId"
-              render={({ field }) => (
-                <FormItem>
-                  <FormLabel>Vendor</FormLabel>
-                  <Select onValueChange={field.onChange} defaultValue={field.value}>
-                    <FormControl>
-                      <SelectTrigger>
-                        <SelectValue placeholder="Select a vendor" />
-                      </SelectTrigger>
-                    </FormControl>
-                    <SelectContent>
-                      {displayedVendors.map((vendor) => (
-                        <SelectItem key={vendor.id} value={vendor.id}>
-                          {vendor.name} ({vendor.category})
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                  <FormMessage />
-                </FormItem>
-              )}
-            />
-            <FormField
-              control={form.control}
               name="partId"
               render={({ field }) => (
                 <FormItem>
-                  <FormLabel>Part</FormLabel>
+                  <FormLabel>Part to Order</FormLabel>
                    <Select onValueChange={field.onChange} defaultValue={field.value}>
                     <FormControl>
                       <SelectTrigger>
-                        <SelectValue placeholder="Select a part to order" />
+                        <SelectValue placeholder="Select a part to order from this vendor" />
                       </SelectTrigger>
                     </FormControl>
                     <SelectContent>
-                      {orderableParts.map((part) => (
+                      {availableParts.map((part) => (
                         <SelectItem key={part.id} value={part.id}>
-                          {part.name}
+                          <div className="flex items-center gap-2">
+                            <ShoppingCart className="h-4 w-4" />
+                            {part.name}
+                          </div>
                         </SelectItem>
                       ))}
                     </SelectContent>
@@ -284,8 +251,8 @@ export function OrderPartsDialog({ children, role }: OrderPartsDialogProps) {
                 <div className="w-full p-3 bg-green-50 border border-green-200 rounded-md">
                   <div className="flex items-center justify-between">
                     <div>
-                      <p className="text-sm font-medium text-green-800">Blockchain Transaction Created</p>
-                      <p className="text-xs text-green-600">Order recorded on blockchain</p>
+                      <p className="text-sm font-medium text-green-800">Blockchain Order Created</p>
+                      <p className="text-xs text-green-600">Vendor order recorded on blockchain</p>
                     </div>
                     <a 
                       href={blockchainTx.etherscanUrl} 
@@ -307,15 +274,15 @@ export function OrderPartsDialog({ children, role }: OrderPartsDialogProps) {
                 {isProcessing ? (
                   <>
                     <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                    Creating Blockchain Order...
+                    Creating Order...
                   </>
                 ) : (
-                  'Place Blockchain Order'
+                  'Place Order'
                 )}
               </Button>
               {!walletConnected && (
                 <p className="text-xs text-muted-foreground text-center">
-                  Connect your Web3 wallet to place blockchain orders
+                  Connect your Web3 wallet to place vendor orders
                 </p>
               )}
             </DialogFooter>

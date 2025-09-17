@@ -72,7 +72,7 @@ export default function BlockchainPage() {
     const txHashes = new Set((transactions as any[]).map(t => t.blockchainTxHash).filter(Boolean));
     const orderIds = new Set((shipments as any[]).map(s => s.blockchainOrderId).filter(Boolean));
 
-    const { vendors: roleVendors } = getVendorsForRole(role, vendors);
+    const { vendors: roleVendors } = getVendorsForRole(role || 'Distributor', vendors);
 
     const newTransactions: Transaction[] = [];
     const newShipments: Shipment[] = [];

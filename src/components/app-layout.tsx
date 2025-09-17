@@ -8,11 +8,14 @@ import { SidebarProvider } from '@/components/ui/sidebar';
 import { AppSidebar } from '@/components/app-sidebar';
 import { AppHeader } from '@/components/app-header';
 
-export function AppLayout({ children }: { children: React.ReactNode }) {
+export function AppLayout({ children, allowUnauthenticated = false }: { children: React.ReactNode, allowUnauthenticated?: boolean }) {
   const { loggedIn, role, walletConnected, isAdmin } = useAppState();
   const router = useRouter();
 
   useEffect(() => {
+    // Skip auth checks if explicitly allowed
+    if (allowUnauthenticated) return;
+    
     if (!loggedIn) {
       router.replace('/login');
       return;
@@ -26,10 +29,10 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
     } else if (!walletConnected) {
       router.replace('/onboarding/wallet');
     }
-  }, [loggedIn, role, walletConnected, isAdmin, router]);
+  }, [loggedIn, role, walletConnected, isAdmin, router, allowUnauthenticated]);
 
-  // For regular users, show loading while redirecting
-  if (!isAdmin && (!loggedIn || !role || !walletConnected)) {
+  // For regular users, show loading while redirecting (unless unauthenticated access is allowed)
+  if (!allowUnauthenticated && !isAdmin && (!loggedIn || !role || !walletConnected)) {
     return (
       <div className="flex items-center justify-center min-h-screen">
         Loading...

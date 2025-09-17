@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import connectDB from '@/lib/mongodb';
 import Transaction from '@/lib/models/Transaction';
+import IDGenerator from '@/lib/id-generator';
 
 export async function GET(request: NextRequest) {
   try {
@@ -8,12 +9,19 @@ export async function GET(request: NextRequest) {
     
     const { searchParams } = new URL(request.url);
     const userId = searchParams.get('userId');
+    const all = searchParams.get('all');
+    
+    if (all === 'true') {
+      // Admin access - get all transactions from all users, sorted by ID
+      const transactions = await Transaction.find({}).sort({ id: 1 });
+      return NextResponse.json(transactions);
+    }
     
     if (!userId) {
       return NextResponse.json({ error: 'User ID is required' }, { status: 400 });
     }
     
-    const transactions = await Transaction.find({ userId }).sort({ date: -1 });
+    const transactions = await Transaction.find({ userId }).sort({ id: 1 });
     return NextResponse.json(transactions);
   } catch (error) {
     console.error('Error fetching transactions:', error);
@@ -26,6 +34,12 @@ export async function POST(request: NextRequest) {
     await connectDB();
     
     const body = await request.json();
+    
+    // Generate proper transaction ID if not provided
+    if (!body.id) {
+      body.id = IDGenerator.generateTransactionId();
+    }
+    
     const transaction = new Transaction(body);
     
     await transaction.save();

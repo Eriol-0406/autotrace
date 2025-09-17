@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useEffect } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Input } from '@/components/ui/input';
@@ -14,10 +14,32 @@ import { format } from 'date-fns';
 import type { Transaction, Shipment } from '@/lib/types';
 
 export function AdminTrackingModule() {
-  const { transactions, shipments, vendors } = useAppState();
+  const { isAdmin, unifiedDataService, vendors } = useAppState();
   const [searchTerm, setSearchTerm] = useState('');
-  const [searchType, setSearchType] = useState<'all' | 'part' | 'entity' | 'wallet' | 'invoice'>('all');
+  const [searchType, setSearchType] = useState<'all' | 'part' | 'entity' | 'wallet' | 'invoice' | 'transactionId'>('all');
   const [selectedStatus, setSelectedStatus] = useState<'all' | 'pending' | 'approved' | 'completed' | 'rejected'>('all');
+  const [transactions, setTransactions] = useState<Transaction[]>([]);
+  const [shipments, setShipments] = useState<Shipment[]>([]);
+
+  // Fetch system-wide data for admin tracking
+  useEffect(() => {
+    if (isAdmin && unifiedDataService) {
+      const fetchSystemData = async () => {
+        try {
+          const systemData = await unifiedDataService.getSystemData();
+          setTransactions(systemData.transactions);
+          setShipments(systemData.shipments);
+          console.log('🎯 Admin Tracking loaded system data:', {
+            transactions: systemData.transactions.length,
+            shipments: systemData.shipments.length
+          });
+        } catch (error) {
+          console.error('Error fetching system tracking data:', error);
+        }
+      };
+      fetchSystemData();
+    }
+  }, [isAdmin, unifiedDataService]);
 
   // Transaction Search Logic
   const filteredTransactions = useMemo(() => {
@@ -43,6 +65,8 @@ export function AdminTrackingModule() {
                    transaction.toWallet?.toLowerCase().includes(term);
           case 'invoice':
             return transaction.invoiceNumber?.toLowerCase().includes(term);
+          case 'transactionId':
+            return transaction.id.toLowerCase().includes(term);
           case 'all':
           default:
             return transaction.partName.toLowerCase().includes(term) ||
@@ -50,7 +74,8 @@ export function AdminTrackingModule() {
                    transaction.to.toLowerCase().includes(term) ||
                    transaction.fromWallet?.toLowerCase().includes(term) ||
                    transaction.toWallet?.toLowerCase().includes(term) ||
-                   transaction.invoiceNumber?.toLowerCase().includes(term);
+                   transaction.invoiceNumber?.toLowerCase().includes(term) ||
+                   transaction.id.toLowerCase().includes(term);
         }
       });
     }
@@ -80,7 +105,20 @@ export function AdminTrackingModule() {
           role: s.role,
         }))
       )
-      .sort((a, b) => b.timestamp - a.timestamp);
+      .sort((a, b) => {
+        // Sort by ID for consistent ordering
+        if (a.type === 'transaction' && b.type === 'transaction') {
+          const aNum = parseInt(a.id.replace('T-', ''));
+          const bNum = parseInt(b.id.replace('T-', ''));
+          return bNum - aNum; // Show newest transactions first
+        }
+        if (a.type === 'shipment' && b.type === 'shipment') {
+          const aNum = parseInt(a.id.replace('SHP-', ''));
+          const bNum = parseInt(b.id.replace('SHP-', ''));
+          return bNum - aNum; // Show newest shipments first
+        }
+        return b.timestamp - a.timestamp;
+      });
   }, [transactions, shipments]);
 
   // Discrepancy Report Logic
@@ -235,6 +273,7 @@ export function AdminTrackingModule() {
                     <SelectItem value="entity">Entity</SelectItem>
                     <SelectItem value="wallet">Wallet Address</SelectItem>
                     <SelectItem value="invoice">Invoice Number</SelectItem>
+                    <SelectItem value="transactionId">Transaction ID</SelectItem>
                   </SelectContent>
                 </Select>
                 <Select value={selectedStatus} onValueChange={(value: any) => setSelectedStatus(value)}>
@@ -276,7 +315,9 @@ export function AdminTrackingModule() {
                         </TableCell>
                       </TableRow>
                     ) : (
-                      filteredTransactions.map((transaction) => (
+                      filteredTransactions
+                        .filter((transaction, index, self) => index === self.findIndex(t => t.id === transaction.id))
+                        .map((transaction) => (
                         <TableRow key={transaction.id}>
                           <TableCell className="font-medium">{transaction.id}</TableCell>
                           <TableCell>{transaction.partName}</TableCell>
@@ -348,8 +389,11 @@ export function AdminTrackingModule() {
                     </TableRow>
                   </TableHeader>
                   <TableBody>
-                    {auditLog.slice(0, 50).map((entry) => (
-                      <TableRow key={`${entry.type}-${entry.id}`}>
+                    {auditLog
+                      .slice(0, 50)
+                      .filter((entry, index, self) => index === self.findIndex(e => e.id === entry.id && e.type === entry.type))
+                      .map((entry) => (
+                      <TableRow key={`${entry.type}-${entry.id}-${entry.timestamp}`}>
                         <TableCell className="font-mono text-sm">
                           {format(new Date(entry.timestamp), 'MMM dd, yyyy HH:mm')}
                         </TableCell>

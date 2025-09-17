@@ -51,6 +51,8 @@ export type Shipment = {
   estimatedDelivery: string;
   history: ShipmentHistory[];
   role: Role;
+  fromWallet?: string; // Wallet address of sender
+  toWallet?: string; // Wallet address of recipient
   blockchainOrderId?: number;
   blockchainTxHash?: string;
   etherscanUrl?: string;
