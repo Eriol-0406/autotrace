@@ -8,16 +8,17 @@ export async function GET(request: NextRequest) {
     
     const { searchParams } = new URL(request.url);
     const email = searchParams.get('email');
+    const includePassword = searchParams.get('includePassword') === 'true';
     
     if (email) {
-      const user = await User.findOne({ email });
+      const user = await User.findOne({ email }).select(includePassword ? '+passwordHash' : '-passwordHash');
       if (!user) {
         return NextResponse.json({ error: 'User not found' }, { status: 404 });
       }
       return NextResponse.json(user);
     }
     
-    const users = await User.find({});
+    const users = await User.find({}).select('-passwordHash');
     return NextResponse.json(users);
   } catch (error) {
     console.error('Error fetching users:', error);
@@ -33,6 +34,7 @@ export async function POST(request: NextRequest) {
     const { 
       email, 
       name, 
+      passwordHash,
       role, 
       isAdmin = false, 
       walletAddress, 
@@ -50,6 +52,7 @@ export async function POST(request: NextRequest) {
     const user = new User({
       email,
       name,
+      passwordHash,
       role,
       isAdmin,
       walletAddress,

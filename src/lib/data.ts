@@ -1,43 +1,11 @@
 import type { Part, Transaction, Shipment, Role, Vendor } from './types';
+import { recentTransactions, enhancedParts } from './dummy-data';
 
-// Simplified demo data - only 10 records per account type
-export const demoParts: Part[] = [
-  // Manufacturer: Raw Materials (3)
-  { id: 'P001-R', name: 'Engine Block Casting', quantity: 50, reorderPoint: 20, maxStock: 100, type: 'raw' },
-  { id: 'P002-R', name: 'Piston Forgings', quantity: 150, reorderPoint: 50, maxStock: 300, type: 'raw' },
-  { id: 'P003-R', name: 'Steel Rods', quantity: 80, reorderPoint: 30, maxStock: 150, type: 'raw' },
-  
-  // Manufacturer: Finished Goods (3)
-  { id: 'P001-F', name: 'Engine Assembly', quantity: 30, reorderPoint: 10, maxStock: 50, type: 'finished' },
-  { id: 'P002-F', name: 'Piston Set', quantity: 70, reorderPoint: 30, maxStock: 150, type: 'finished' },
-  { id: 'P003-F', name: 'Brake Pad Kit', quantity: 80, reorderPoint: 40, maxStock: 200, type: 'finished' },
+// Use enhanced parts with turnover data
+export const demoParts: Part[] = enhancedParts;
 
-  // Supplier (2)
-  { id: 'S-P004', name: '18-inch Alloy Wheel', quantity: 18, reorderPoint: 25, maxStock: 80, type: 'finished', source: 'Wheel Co.' },
-  { id: 'S-P005', name: 'Transmission Assembly', quantity: 30, reorderPoint: 10, maxStock: 50, type: 'finished', source: 'Gearbox Inc.' },
-
-  // Distributor (2)
-  { id: 'D-P007', name: 'Alternator', quantity: 22, reorderPoint: 25, maxStock: 70, type: 'finished', leadTime: 7, backorders: 5 },
-  { id: 'D-P008', name: 'Radiator', quantity: 40, reorderPoint: 20, maxStock: 60, type: 'finished', leadTime: 5, backorders: 0 },
-];
-
-export const demoTransactions: Transaction[] = [
-  // Manufacturer transactions (4)
-  { id: 'T-001', partName: 'Engine Block Casting', type: 'supply', quantity: 20, date: '2024-07-15', from: 'Global Metals Inc.', to: 'Manufacturer', role: 'Manufacturer', status: 'completed', fromWallet: '0x9876543210987654321098765432109876543210', toWallet: '0x742d35Cc6635C0532925a3b8D295759a9C7438B9', invoiceNumber: 'INV-2024-001' },
-  { id: 'T-002', partName: 'Engine Assembly', type: 'demand', quantity: 10, date: '2024-07-14', from: 'Manufacturer', to: 'Auto Parts Supply Co.', role: 'Manufacturer', status: 'approved', fromWallet: '0x742d35Cc6635C0532925a3b8D295759a9C7438B9', toWallet: '0x8946099D625BD30B2D6D7f4Ab7A0c85cdC52fF99', invoiceNumber: 'INV-2024-002' },
-  { id: 'T-003', partName: 'Piston Set', type: 'supply', quantity: 50, date: '2024-07-13', from: 'Manufacturer', to: 'Supplier', role: 'Manufacturer', status: 'completed', fromWallet: '0x742d35Cc6635C0532925a3b8D295759a9C7438B9', toWallet: '0x8946099D625BD30B2D6D7f4Ab7A0c85cdC52fF99', invoiceNumber: 'INV-2024-003' },
-  { id: 'T-004', partName: 'Brake Pad Kit', type: 'demand', quantity: 25, date: '2024-07-12', from: 'Manufacturer', to: 'Regional Distribution Hub', role: 'Manufacturer', status: 'pending', fromWallet: '0x742d35Cc6635C0532925a3b8D295759a9C7438B9', toWallet: '0x1234567890123456789012345678901234567890', invoiceNumber: 'INV-2024-004' },
-  
-  // Supplier transactions (3)
-  { id: 'T-005', partName: 'Transmission Assembly', type: 'supply', quantity: 30, date: '2024-07-11', from: 'Apex Automotive Manufacturing', to: 'Supplier', role: 'Supplier', status: 'completed', fromWallet: '0x9876543210987654321098765432109876543210', toWallet: '0x8946099D625BD30B2D6D7f4Ab7A0c85cdC52fF99', invoiceNumber: 'INV-2024-005' },
-  { id: 'T-006', partName: '18-inch Alloy Wheel', type: 'demand', quantity: 15, date: '2024-07-10', from: 'Supplier', to: 'Regional Distribution Hub', role: 'Supplier', status: 'approved', fromWallet: '0x8946099D625BD30B2D6D7f4Ab7A0c85cdC52fF99', toWallet: '0x1234567890123456789012345678901234567890', invoiceNumber: 'INV-2024-006' },
-  { id: 'T-007', partName: 'Transmission Assembly', type: 'demand', quantity: 20, date: '2024-07-09', from: 'Supplier', to: 'Citywide Repair Shops', role: 'Supplier', status: 'pending', fromWallet: '0x8946099D625BD30B2D6D7f4Ab7A0c85cdC52fF99', toWallet: '0x6666777788889999000011112222333344445555', invoiceNumber: 'INV-2024-007' },
-  
-  // Distributor transactions (3)
-  { id: 'T-008', partName: 'Alternator', type: 'supply', quantity: 50, date: '2024-07-08', from: 'Auto Parts Supply Co.', to: 'Distributor', role: 'Distributor', status: 'completed', fromWallet: '0x8946099D625BD30B2D6D7f4Ab7A0c85cdC52fF99', toWallet: '0x5555666677778888999900001111222233334444', invoiceNumber: 'INV-2024-008' },
-  { id: 'T-009', partName: 'Alternator', type: 'demand', quantity: 25, date: '2024-07-07', from: 'Distributor', to: 'Citywide Repair Shops', role: 'Distributor', status: 'approved', fromWallet: '0x5555666677778888999900001111222233334444', toWallet: '0x6666777788889999000011112222333344445555', invoiceNumber: 'INV-2024-009' },
-  { id: 'T-010', partName: 'Radiator', type: 'supply', quantity: 60, date: '2024-07-06', from: 'Auto Parts Supply Co.', to: 'Distributor', role: 'Distributor', status: 'completed', fromWallet: '0x8946099D625BD30B2D6D7f4Ab7A0c85cdC52fF99', toWallet: '0x5555666677778888999900001111222233334444', invoiceNumber: 'INV-2024-010' },
-];
+// Use enhanced transactions with values
+export const demoTransactions: Transaction[] = recentTransactions;
 
 export const demoShipments: Shipment[] = [
   // Manufacturer shipments (3)
@@ -125,11 +93,10 @@ export const makeUniqueParts = (parts: Part[], userId: string): Part[] => {
 };
 
 export const makeUniqueTransactions = (transactions: Transaction[], userId: string): Transaction[] => {
-  const userPrefix = userId || 'demo';
   return transactions.map((transaction, index) => ({
     ...transaction,
-    id: `T${String(index + 1).padStart(3, '0')}`,
-    partName: String(transaction.partName), // Ensure partName is a string
+    id: transaction.id?.includes('-') ? transaction.id : `T-${String(index + 1).padStart(3, '0')}`,
+    partName: String(transaction.partName),
   }));
 };
 
@@ -144,25 +111,26 @@ export const makeUniqueShipments = (shipments: Shipment[], userId: string): Ship
 
 export const getVendorsForRole = (role: Role, forceVendors?: Vendor[]): { vendors: Vendor[]; customers: Vendor[] } => {
   const vendorsToUse = forceVendors || allVendors;
-  
-  switch (role) {
-    case 'Manufacturer':
-      return {
+
+    switch (role) {
+        case 'Manufacturer':
+            return {
         vendors: vendorsToUse.filter(v => v.roles.includes('Manufacturer') && v.relationshipType === 'vendor'),
         customers: vendorsToUse.filter(v => v.roles.includes('Manufacturer') && v.relationshipType === 'customer')
-      };
-    case 'Supplier':
-      return {
+            };
+        case 'Supplier':
+             return {
         vendors: vendorsToUse.filter(v => v.roles.includes('Supplier') && v.relationshipType === 'vendor'),
         customers: vendorsToUse.filter(v => v.roles.includes('Supplier') && v.relationshipType === 'customer')
-      };
-    case 'Distributor':
-      return {
+            };
+        case 'Distributor':
+            return {
         vendors: vendorsToUse.filter(v => v.roles.includes('Distributor') && v.relationshipType === 'vendor'),
         customers: vendorsToUse.filter(v => v.roles.includes('Distributor') && v.relationshipType === 'customer')
-      };
-    default:
-      return { vendors: [], customers: [] };
+            };
+        default:
+      // For admin or unknown roles, return all vendors
+      return { vendors: vendorsToUse, customers: vendorsToUse };
   }
 };
 
@@ -214,8 +182,8 @@ export const placeOrder = (
 ): Transaction => {
   const newTransactions = [...demoTransactions];
   const transactionId = `T-${String(newTransactions.length + 1).padStart(3, '0')}`;
-  
-  return {
+    
+    return { 
     id: transactionId,
     partName,
     type,
@@ -278,7 +246,7 @@ export const getPartHistory = (partName: string, userId: string): { date: string
       date: date.toISOString().split('T')[0],
       stock: currentStock
     });
-  }
-  
-  return history;
+    }
+
+    return history;
 };

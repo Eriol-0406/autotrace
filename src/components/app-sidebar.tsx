@@ -51,10 +51,9 @@ export function AppSidebar() {
     return pathname === href;
   };
 
-  // Admin menu items
+  // Admin menu items - removed transaction approval and entity management
   const adminMenuItems = [
-    { href: '/admin/transactions', label: 'Transaction Approval', icon: Shield },
-    { href: '/admin/entities', label: 'Entity Management', icon: Building },
+    // Removed admin-specific items as requested
   ];
 
   return (

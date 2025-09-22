@@ -36,6 +36,7 @@ import { Bot, Loader2, BarChart, Sparkles } from 'lucide-react';
 // AI functionality removed for lighter build
 import { computeReplenishmentPlan, type ReplenishmentRecommendation } from '@/lib/forecast';
 import { useAppState } from '@/context/enhanced-app-state-provider';
+import { demoParts } from '@/lib/data';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 
 const formSchema = z.object({
@@ -71,6 +72,9 @@ const roleSpecifics = {
 
 export function SupplyForecast() {
   const { role, parts, transactions } = useAppState();
+  
+  // Use demo parts for forecasting options - all parts that can be forecasted
+  const availablePartsForForecast = demoParts;
 
   const [isLoading, setIsLoading] = useState(false);
   const [result, setResult] = useState<any>(null);
@@ -100,7 +104,7 @@ export function SupplyForecast() {
     setPlan(null);
     setSelectedPartPlan(null);
     try {
-      const selectedPart = parts.find((p) => p.id === data.partId);
+      const selectedPart = availablePartsForForecast.find((p) => p.id === data.partId);
       if (!selectedPart) {
         toast({
           title: 'Error',
@@ -115,7 +119,7 @@ export function SupplyForecast() {
       const transactionHistory = partTransactions.map(tx => `Date: ${tx.date}, Type: ${tx.type}, Quantity: ${tx.quantity}`).join('\n');
 
       // Always compute a local replenishment plan so we have actionable output even if AI isn't available
-      const localPlan = computeReplenishmentPlan(parts, transactions, {
+      const localPlan = computeReplenishmentPlan(availablePartsForForecast, transactions, {
         lookbackDays: 90,
         vendorLeadTimeDays: data.vendorLeadTimeDays,
         safetyDays: 7,
@@ -178,7 +182,7 @@ export function SupplyForecast() {
                       </SelectTrigger>
                     </FormControl>
                     <SelectContent>
-                      {parts.map((part, index) => (
+                      {availablePartsForForecast.map((part, index) => (
                         <SelectItem key={`${part.id}-${index}`} value={part.id}>
                           {part.name}
                         </SelectItem>
@@ -186,6 +190,9 @@ export function SupplyForecast() {
                     </SelectContent>
                   </Select>
                   <FormMessage />
+                  <p className="text-xs text-muted-foreground">
+                    You can forecast demand for any part, even if you don't have it in inventory yet.
+                  </p>
                 </FormItem>
               )}
             />
@@ -217,7 +224,7 @@ export function SupplyForecast() {
             />
           </CardContent>
           <CardFooter>
-            <Button type="submit" disabled={isLoading || parts.length === 0} className="w-full">
+            <Button type="submit" disabled={isLoading || availablePartsForForecast.length === 0} className="w-full">
               {isLoading ? (
                 <Loader2 className="mr-2 h-4 w-4 animate-spin" />
               ) : (

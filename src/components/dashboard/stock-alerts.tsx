@@ -37,16 +37,13 @@ export function StockAlerts() {
 
     // Framework requirement: Filter alerts by user.wallet
     const userWallet = walletInfo?.address;
-    const userId = currentUser?.id;
+    const userId = currentUser?._id;
     
     const { parts: userParts } = getDataForRole(
-        role, 
-        parts, 
-        [], // transactions not needed for alerts
-        [], // shipments not needed for alerts
-        false, // not admin
-        userId,
-        userWallet // Pass wallet for filtering
+        role,
+        userId || '',
+        userWallet, // Pass wallet for filtering
+        false // not admin
     );
 
     const lowStockParts = userParts.filter(

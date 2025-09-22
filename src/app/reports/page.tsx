@@ -9,6 +9,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { useAppState } from '@/context/enhanced-app-state-provider';
 import { getDataForRole, getVendorsForRole } from '@/lib/data';
+import { ReportsDataService } from '@/lib/reports-data';
 import { computeReplenishmentPlan } from '@/lib/forecast';
 import { smartContractService } from '@/lib/smart-contract';
 import { Shield, Download, FileText, BarChart3 } from 'lucide-react';
@@ -83,85 +84,28 @@ const ClientReports = () => {
   const [userParts, setUserParts] = useState<any[]>([]);
   const [userTransactions, setUserTransactions] = useState<any[]>([]);
 
-  // Load user's actual data from blockchain transactions
-  useEffect(() => {
-    const loadUserData = async () => {
-      if (!walletInfo?.address) return;
-      
-      try {
-        console.log('📊 Loading user data for reports...');
-        const orderCount = await smartContractService.getOrderCount();
-        
-        if (orderCount > 0) {
-          const orderPromises = [];
-          for (let i = 1; i <= orderCount; i++) {
-            orderPromises.push(smartContractService.getOrder(i));
-          }
-          
-          const allOrders = await Promise.all(orderPromises);
-          
-          // Filter orders for current user
-          const currentWalletAddress = walletInfo?.address?.toLowerCase();
-          const userOrders = allOrders.filter(order => 
-            order.buyer.toLowerCase() === currentWalletAddress || 
-            order.seller.toLowerCase() === currentWalletAddress
-          );
-          
-          console.log(`📦 Found ${userOrders.length} orders for current user`);
-          
-          // Convert orders to transactions
-          const { vendors: roleVendors } = getVendorsForRole(role || 'Distributor', vendors);
-          const transactions = userOrders.map((order, index) => ({
-            id: `T-${String(index + 1).padStart(3, '0')}`,
-            partName: order.partName,
-            type: 'supply',
-            quantity: order.quantity,
-            date: new Date(order.timestamp * 1000).toISOString().split('T')[0],
-            from: roleVendors[0]?.name || 'Vendor',
-            to: role || 'Distributor',
-            role: role || 'Distributor',
-            status: order.completed ? 'completed' : 'pending',
-            blockchainOrderId: order.orderId,
-            blockchainTxHash: order.txHash,
-          }));
-          
-          // Generate parts from transactions (aggregate by partName)
-          const partsMap = new Map();
-          transactions.forEach(tx => {
-            const existing = partsMap.get(tx.partName);
-            if (existing) {
-              existing.quantity += tx.quantity;
-            } else {
-              partsMap.set(tx.partName, {
-                id: `P-${String(partsMap.size + 1).padStart(3, '0')}`,
-                name: tx.partName,
-                quantity: tx.quantity,
-                reorderPoint: 10,
-                maxStock: tx.quantity * 2,
-                type: 'finished'
-              });
-            }
-          });
-          
-          const parts = Array.from(partsMap.values());
-          
-          console.log(`📋 Generated ${parts.length} parts and ${transactions.length} transactions from blockchain orders`);
-          setUserParts(parts);
-          setUserTransactions(transactions);
-        } else {
-          console.log('📭 No blockchain orders found');
-          setUserParts([]);
-          setUserTransactions([]);
-        }
-      } catch (error) {
-        console.error('❌ Error loading user data for reports:', error);
-        setUserParts([]);
-        setUserTransactions([]);
-      }
-    };
+  // Get enhanced reports data
+  const reportsData = {
+    summary: ReportsDataService.getTransactionSummary(role, 30),
+    recentTransactions: ReportsDataService.getRecentTransactions(role, 10),
+    inventoryHealth: ReportsDataService.getInventoryHealth(role),
+    topParts: ReportsDataService.getTopPerformingParts(role, 5),
+    lowParts: ReportsDataService.getLowPerformingParts(role, 5),
+    turnoverData: ReportsDataService.getInventoryTurnover(role),
+    volumeData: ReportsDataService.getTransactionVolume(role, 'monthly'),
+  };
 
-    loadUserData();
-  }, [walletInfo, role, vendors]);
+  // Load dummy data directly instead of blockchain
+  useEffect(() => {
+    if (role) {
+      console.log('📊 Loading dummy data for reports...');
+      // Use dummy data directly
+      const dummyData = getDataForRole(role, '', undefined, false);
+      setUserParts(dummyData.parts);
+      setUserTransactions(dummyData.transactions);
+      console.log(`📦 Loaded ${dummyData.parts.length} parts and ${dummyData.transactions.length} transactions`);
+    }
+  }, [role]);
 
   if (!role) {
     return <p>Loading reports...</p>;
@@ -321,32 +265,30 @@ const AdminReports = () => {
       shipments: any[];
     }>({ parts: [], transactions: [], shipments: [] });
 
-    // Fetch system-wide data for admin reports
+    // Load dummy data directly for admin reports
     useEffect(() => {
-      if (isAdmin && unifiedDataService) {
-        const fetchSystemData = async () => {
-          try {
-            const systemData = await unifiedDataService.getSystemData();
-            setSystemData({
-              parts: systemData.parts,
-              transactions: systemData.transactions,
-              shipments: systemData.shipments
-            });
-            console.log('🎯 Admin Reports loaded system data:', {
-              parts: systemData.parts.length,
-              transactions: systemData.transactions.length,
-              shipments: systemData.shipments.length
-            });
-          } catch (error) {
-            console.error('Error fetching system data for reports:', error);
-          }
-        };
-        fetchSystemData();
+      if (isAdmin) {
+        // Use dummy data directly instead of relying on database
+        const dummyData = getDataForRole('Admin', '', undefined, true);
+        setSystemData({
+          parts: dummyData.parts,
+          transactions: dummyData.transactions,
+          shipments: dummyData.shipments
+        });
+        console.log('🎯 Admin Reports loaded dummy data:', {
+          parts: dummyData.parts.length,
+          transactions: dummyData.transactions.length,
+          shipments: dummyData.shipments.length
+        });
       }
-    }, [isAdmin, unifiedDataService]);
+    }, [isAdmin]);
 
     const { parts, transactions, shipments } = systemData;
-    const { parts: roleParts, transactions: roleTransactions } = getDataForRole(role, parts, transactions, shipments, isAdmin);
+    
+    // For admin, use systemData directly; for others, use role-specific data
+    const { parts: roleParts, transactions: roleTransactions } = isAdmin 
+      ? { parts, transactions }
+      : getDataForRole(role || 'Distributor', '', undefined, false);
 
     // Admin export functions
     const exportSystemReport = () => {
@@ -378,7 +320,7 @@ const AdminReports = () => {
     const exportEntityReport = () => {
       const roles: Array<'Manufacturer' | 'Supplier' | 'Distributor'> = ['Manufacturer', 'Supplier', 'Distributor'];
       const entityData = roles.map(entityRole => {
-        const { parts: entityParts, transactions: entityTransactions } = getDataForRole(entityRole, parts, transactions, shipments, false);
+        const { parts: entityParts, transactions: entityTransactions } = getDataForRole(entityRole, '', undefined, false);
         return {
           entity: entityRole,
           parts: entityParts.length,

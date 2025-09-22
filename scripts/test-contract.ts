@@ -1,4 +1,4 @@
-const { ethers } = require("hardhat");
+import { ethers } from "hardhat";
 
 async function main() {
   console.log("Testing InventoryContract...");
@@ -12,7 +12,7 @@ async function main() {
   const [owner, buyer, seller] = await ethers.getSigners();
   
   console.log("Creating test order...");
-  const tx = await contract.connect(buyer).createOrder(
+  const tx = await (contract as any).connect(buyer).createOrder(
     seller.address,
     "Test Part",
     100
@@ -22,11 +22,11 @@ async function main() {
   console.log("Order created! Transaction hash:", receipt.hash);
   
   // Get order count
-  const orderCount = await contract.getOrderCount();
+  const orderCount = await (contract as any).getOrderCount();
   console.log("Total orders:", orderCount.toString());
   
   // Get the first order
-  const order = await contract.getOrder(1);
+  const order = await (contract as any).getOrder(1);
   console.log("First order details:");
   console.log("- Order ID:", order.orderId.toString());
   console.log("- Buyer:", order.buyer);

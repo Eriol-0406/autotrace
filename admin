@@ -1,0 +1,89 @@
+#!/bin/bash
+
+# MongoDB Admin Tool Wrapper
+# Usage: ./admin <command> [options]
+
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+
+case "$1" in
+  "stats")
+    npx tsx "$SCRIPT_DIR/scripts/mongodb-admin.ts" stats
+    ;;
+  "list"|"users")
+    npx tsx "$SCRIPT_DIR/scripts/mongodb-admin.ts" list-users
+    ;;
+  "delete")
+    if [ -z "$2" ]; then
+      echo "❌ Please provide email: ./admin delete <email>"
+      exit 1
+    fi
+    npx tsx "$SCRIPT_DIR/scripts/mongodb-admin.ts" delete-user "$2"
+    ;;
+  "update")
+    if [ -z "$2" ]; then
+      echo "❌ Please provide email: ./admin update <email> [options]"
+      echo "Options: --role <role> --admin --password <password> --wallet <address>"
+      exit 1
+    fi
+    shift
+    npx tsx "$SCRIPT_DIR/scripts/mongodb-admin.ts" update-user "$@"
+    ;;
+  "create")
+    shift
+    npx tsx "$SCRIPT_DIR/scripts/mongodb-admin.ts" create-user "$@"
+    ;;
+  "cleanup")
+    npx tsx "$SCRIPT_DIR/scripts/mongodb-admin.ts" cleanup
+    ;;
+  "reset-password")
+    if [ -z "$2" ] || [ -z "$3" ]; then
+      echo "❌ Please provide email and password: ./admin reset-password <email> <password>"
+      exit 1
+    fi
+    npx tsx "$SCRIPT_DIR/scripts/mongodb-admin.ts" reset-password "$2" "$3"
+    ;;
+  "help"|"--help"|"-h"|"")
+    echo "🗄️  MongoDB Admin Tool"
+    echo "====================="
+    echo ""
+    echo "Commands:"
+    echo "  stats                    - Show database statistics"
+    echo "  list, users              - List all users"
+    echo "  delete <email>           - Delete user by email"
+    echo "  update <email> [options] - Update user properties"
+    echo "  create [options]         - Create new user"
+    echo "  cleanup                  - Clean up database"
+    echo "  reset-password <email> <password> - Reset user password"
+    echo "  help                     - Show this help"
+    echo ""
+    echo "Update Options:"
+    echo "  --role <role>            - Set user role (Manufacturer, Distributor, Retailer)"
+    echo "  --admin                  - Make user admin"
+    echo "  --password <password>    - Set user password"
+    echo "  --wallet <address>       - Set wallet address"
+    echo ""
+    echo "Create Options:"
+    echo "  --name <name>            - User name (required)"
+    echo "  --email <email>          - User email (required)"
+    echo "  --password <password>    - User password"
+    echo "  --role <role>            - User role"
+    echo "  --admin                  - Make user admin"
+    echo "  --wallet <address>       - Wallet address"
+    echo ""
+    echo "Examples:"
+    echo "  ./admin stats"
+    echo "  ./admin list"
+    echo "  ./admin delete test@example.com"
+    echo "  ./admin update test@example.com --role Manufacturer"
+    echo "  ./admin update test@example.com --admin"
+    echo "  ./admin create --name 'John Doe' --email 'john@example.com' --password 'password123'"
+    echo "  ./admin create --name 'Admin User' --email 'admin2@example.com' --admin --password 'admin123'"
+    echo "  ./admin cleanup"
+    echo "  ./admin reset-password admin@example.com newpassword123"
+    ;;
+  *)
+    echo "❌ Unknown command: $1"
+    echo "Run './admin help' for usage information"
+    exit 1
+    ;;
+esac

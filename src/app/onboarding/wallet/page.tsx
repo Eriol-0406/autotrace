@@ -192,7 +192,7 @@ export default function WalletConnectionPage() {
                   <Checkbox
                     id="blockchain-registration"
                     checked={registerOnBlockchain}
-                    onCheckedChange={(checked) => setRegisterOnBlockchain(checked as boolean)}
+                    onCheckedChange={(checked: boolean) => setRegisterOnBlockchain(checked)}
                   />
                   <Label htmlFor="blockchain-registration" className="text-sm font-medium flex items-center gap-2">
                     <Shield className="h-4 w-4 text-primary" />

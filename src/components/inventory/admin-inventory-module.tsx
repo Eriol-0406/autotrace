@@ -327,9 +327,13 @@ export function AdminInventoryModule() {
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {filteredTransactions.slice(0, 20).map((transaction) => (
-                    <TableRow key={transaction.id}>
-                      <TableCell className="font-mono text-sm">{transaction.id}</TableCell>
+                  {filteredTransactions.slice(0, 20).map((transaction, index) => {
+                    const displayId = transaction.id && !transaction.id.includes('-')
+                      ? transaction.id.replace(/^([A-Za-z]+)(?=\d)/, '$1-')
+                      : transaction.id;
+                    return (
+                    <TableRow key={`${transaction.id}-${index}-${(transaction as any)._id || 'na'}`}>
+                      <TableCell className="font-mono text-sm">{displayId}</TableCell>
                       <TableCell>
                         <Badge variant="outline">{transaction.role || 'Unknown'}</Badge>
                       </TableCell>
@@ -355,7 +359,7 @@ export function AdminInventoryModule() {
                         )}
                       </TableCell>
                     </TableRow>
-                  ))}
+                  );})}
                 </TableBody>
               </Table>
               {filteredTransactions.length === 0 && (
@@ -380,8 +384,8 @@ export function AdminInventoryModule() {
               </CardHeader>
               <CardContent>
                 <div className="space-y-3">
-                  {pendingTransactions.slice(0, 5).map((tx) => (
-                    <div key={tx.id} className="p-3 border rounded-lg">
+                  {pendingTransactions.slice(0, 5).map((tx, index) => (
+                    <div key={`${tx.id}-${index}-${(tx as any)._id || 'na'}`} className="p-3 border rounded-lg">
                       <div className="flex justify-between items-start mb-2">
                         <div>
                           <div className="font-medium text-sm">{tx.partName}</div>
@@ -429,8 +433,8 @@ export function AdminInventoryModule() {
               </CardHeader>
               <CardContent>
                 <div className="space-y-3">
-                  {approvedTransactions.slice(0, 5).map((tx) => (
-                    <div key={tx.id} className="p-3 border rounded-lg">
+                  {approvedTransactions.slice(0, 5).map((tx, index) => (
+                    <div key={`${tx.id}-${index}-${(tx as any)._id || 'na'}`} className="p-3 border rounded-lg">
                       <div className="flex justify-between items-start mb-2">
                         <div>
                           <div className="font-medium text-sm">{tx.partName}</div>
@@ -460,8 +464,8 @@ export function AdminInventoryModule() {
               </CardHeader>
               <CardContent>
                 <div className="space-y-3">
-                  {completedTransactions.slice(0, 5).map((tx) => (
-                    <div key={tx.id} className="p-3 border rounded-lg">
+                  {completedTransactions.slice(0, 5).map((tx, index) => (
+                    <div key={`${tx.id}-${index}-${(tx as any)._id || 'na'}`} className="p-3 border rounded-lg">
                       <div className="flex justify-between items-start mb-2">
                         <div>
                           <div className="font-medium text-sm">{tx.partName}</div>

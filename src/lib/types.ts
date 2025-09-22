@@ -12,6 +12,7 @@ export type Transaction = {
   fromWallet?: string; // Wallet address of sender
   toWallet?: string; // Wallet address of recipient
   invoiceNumber?: string; // Invoice/receipt number
+  value?: number; // Transaction value in USD
   blockchainOrderId?: number; // Blockchain order ID
   blockchainTxHash?: string; // Blockchain transaction hash
   etherscanUrl?: string; // Link to view on Etherscan
@@ -29,6 +30,8 @@ export type Part = {
   source?: string; // For Supplier
   leadTime?: number; // For Distributor
   backorders?: number; // For Distributor
+  turnoverRate?: number; // Inventory turnover rate
+  category?: string; // Part category (High Value, Fast Moving, etc.)
 };
 
 export type Role = 'Manufacturer' | 'Supplier' | 'Distributor';

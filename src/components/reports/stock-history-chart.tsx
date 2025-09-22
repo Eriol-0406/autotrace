@@ -153,7 +153,7 @@ export function StockHistoryChart({ parts: propParts, transactions: propTransact
   }, [parts, selectedPartId]);
 
   const chartData = useMemo(() => {
-    if (!selectedPartId || !role) return [];
+    if (!selectedPartId) return [];
     const selectedPart = parts.find(p => p.id === selectedPartId);
     if (!selectedPart) return [];
 

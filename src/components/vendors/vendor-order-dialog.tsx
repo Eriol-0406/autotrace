@@ -49,12 +49,10 @@ export function VendorOrderDialog({ children, vendor, role }: VendorOrderDialogP
   const [isProcessing, setIsProcessing] = useState(false);
   const [blockchainTx, setBlockchainTx] = useState<{txHash: string; etherscanUrl: string} | null>(null);
   const { toast } = useToast();
-  const { walletConnected, updateUserData, parts, transactions, shipments } = useAppState();
+  const { walletConnected, updateUserData, parts, transactions, shipments, currentUser } = useAppState();
 
-  // Framework requirement: Create orders to vendors for parts
-  const availableParts = vendor.suppliedParts && vendor.suppliedParts.length > 0 
-    ? vendor.suppliedParts 
-    : demoParts.filter(p => p.type === 'finished' || p.type === 'raw');
+  // Always show parts for ordering - vendor can supply any part
+  const availableParts = demoParts.filter(p => p.type === 'finished' || p.type === 'raw');
 
   const form = useForm<OrderFormValues>({
     resolver: zodResolver(orderSchema),
@@ -98,30 +96,63 @@ export function VendorOrderDialog({ children, vendor, role }: VendorOrderDialogP
         etherscanUrl: blockchainResult.etherscanUrl
       });
 
-      // Create local transaction record ONLY after blockchain success
-      const newTransaction = {
-        id: `T-${String(Math.floor(Math.random() * 900) + 100)}`,
-        partName: part.name,
-        type: 'demand' as const,
-        quantity: data.quantity,
-        date: new Date().toISOString().split('T')[0],
-        from: role,
-        to: vendor.name,
-        role: role,
-        status: 'pending' as const,
-        fromWallet: undefined, // Will be filled by current user's wallet
-        toWallet: vendor.walletAddress,
-        invoiceNumber: `INV-2024-${Date.now().toString().slice(-6)}`,
-        blockchainOrderId: blockchainResult.orderId,
-        blockchainTxHash: blockchainResult.txHash,
-        etherscanUrl: blockchainResult.etherscanUrl
-      };
+      // Persist transaction to API/Mongo (primary path)
+      let createdTx: any = null;
+      try {
+        const res = await fetch('/api/transactions', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            userId: currentUser?._id,
+            // id omitted to let server generate canonical id
+            partName: part.name,
+            type: 'demand',
+            quantity: data.quantity,
+            date: new Date().toISOString(),
+            from: role,
+            to: vendor.name,
+            role: role,
+            status: 'pending',
+            fromWallet: undefined,
+            toWallet: vendor.walletAddress || null,
+            invoiceNumber: `INV-${new Date().getFullYear()}-${Date.now().toString().slice(-6)}`,
+            blockchainOrderId: blockchainResult.orderId,
+            blockchainTxHash: blockchainResult.txHash,
+            etherscanUrl: blockchainResult.etherscanUrl,
+          }),
+        });
+        if (res.ok) {
+          createdTx = await res.json();
+        } else {
+          throw new Error(await res.text());
+        }
+      } catch (e) {
+        // Safe fallback to local state so UI doesn't crash during demo
+        createdTx = {
+          id: `T-${String((transactions?.length || 0) + 1).padStart(3, '0')}`,
+          partName: part.name,
+          type: 'demand' as const,
+          quantity: data.quantity,
+          date: new Date().toISOString(),
+          from: role,
+          to: vendor.name,
+          role: role,
+          status: 'pending' as const,
+          fromWallet: undefined,
+          toWallet: vendor.walletAddress || null,
+          invoiceNumber: `INV-${new Date().getFullYear()}-${Date.now().toString().slice(-6)}`,
+          blockchainOrderId: blockchainResult.orderId,
+          blockchainTxHash: blockchainResult.txHash,
+          etherscanUrl: blockchainResult.etherscanUrl,
+        };
+        console.warn('Transaction API failed; using local fallback:', e);
+      }
 
-      // Update user data ONLY after blockchain success
+      // Update user data with created record
       updateUserData({
         parts,
-        transactions: [...transactions, newTransaction],
-        shipments
+        transactions: [...transactions, createdTx],
+        shipments,
       });
 
       // Show success toast ONLY after blockchain success

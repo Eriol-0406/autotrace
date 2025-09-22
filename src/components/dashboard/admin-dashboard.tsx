@@ -6,6 +6,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { useAppState } from "@/context/enhanced-app-state-provider";
 import { getDataForRole } from "@/lib/data";
+import { ReportsDataService } from "@/lib/reports-data";
 import type { Role, Transaction, Part } from "@/lib/types";
 import { Boxes, ArrowDownUp, Factory, Building, Truck, Shield, ArrowUp, ArrowDown } from "lucide-react";
 import { Badge } from "../ui/badge";
@@ -122,8 +123,8 @@ const GlobalActivityLog = ({ transactions, vendors }: { transactions: Transactio
                         </TableRow>
                     </TableHeader>
                     <TableBody>
-                        {allActivities.map(activity => (
-                             <TableRow key={activity.id}>
+                        {allActivities.map((activity, index) => (
+                             <TableRow key={`${activity.type}-${activity.id}-${index}`}>
                                 <TableCell>
                                     <Badge variant={activity.type === 'admin_action' ? 'default' : 'outline'}>
                                         {activity.entity}
@@ -180,33 +181,35 @@ export function AdminDashboard() {
     shipments: any[];
   }>({ parts: [], transactions: [], vendors: [], shipments: [] });
 
-  // Fetch system-wide data for admin
+  // Load dummy data directly for admin dashboard
   useEffect(() => {
-    if (isAdmin && unifiedDataService) {
-      const fetchSystemData = async () => {
-        try {
-          const systemData = await unifiedDataService.getSystemData();
-          setSystemData({
-            parts: systemData.parts,
-            transactions: systemData.transactions,
-            vendors: systemData.vendors,
-            shipments: systemData.shipments
-          });
-          console.log('🎯 Admin Dashboard loaded system data:', {
-            parts: systemData.parts.length,
-            transactions: systemData.transactions.length,
-            vendors: systemData.vendors.length,
-            shipments: systemData.shipments.length
-          });
-        } catch (error) {
-          console.error('Error fetching system data:', error);
-        }
-      };
-      fetchSystemData();
+    if (isAdmin) {
+      // Use dummy data directly instead of relying on database
+      const dummyData = getDataForRole('Admin', '', undefined, true);
+      setSystemData({
+        parts: dummyData.parts,
+        transactions: dummyData.transactions,
+        vendors: dummyData.vendors,
+        shipments: dummyData.shipments
+      });
+      console.log('🎯 Admin Dashboard loaded dummy data:', {
+        parts: dummyData.parts.length,
+        transactions: dummyData.transactions.length,
+        vendors: dummyData.vendors.length,
+        shipments: dummyData.shipments.length
+      });
     }
-  }, [isAdmin, unifiedDataService]);
+  }, [isAdmin]);
 
   const { parts, transactions, vendors, shipments } = systemData;
+  
+  // Get enhanced reports data for admin view
+  const systemSummary = ReportsDataService.getTransactionSummary();
+  const systemPerformance = ReportsDataService.getPerformanceMetrics();
+  const inventoryHealth = ReportsDataService.getInventoryHealth();
+  const topPerformingParts = ReportsDataService.getTopPerformingParts();
+  const vendorPerformance = ReportsDataService.getVendorPerformance();
+  
   const totalInventory = parts.reduce((sum, part) => sum + part.quantity, 0);
   const totalParts = parts.length;
   const totalTransactions = transactions.length;

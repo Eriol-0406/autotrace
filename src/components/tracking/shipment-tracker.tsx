@@ -18,7 +18,7 @@ import { Label } from '@/components/ui/label';
 import { Input } from '@/components/ui/input';
 
 export function ShipmentTracker() {
-  const { parts, transactions, vendors, updateVendorRating, updateUserData, role, currentUser, walletInfo, isAdmin } = useAppState();
+  const { parts, transactions, vendors, shipments, updateVendorRating, updateUserData, role, currentUser, walletInfo, isAdmin } = useAppState();
   const [blockchainShipments, setBlockchainShipments] = useState<any[]>([]);
   const [selectedShipmentId, setSelectedShipmentId] = useState('');
   const { toast } = useToast();
@@ -119,7 +119,7 @@ export function ShipmentTracker() {
     [selectedShipmentId, userShipments]
   );
   
-  const handleReceiveShipment = () => {
+  const handleReceiveShipment = async () => {
     if (!selectedShipment) return;
 
     const result = receiveShipment(selectedShipment.id, { parts, shipments, transactions });
@@ -129,21 +129,50 @@ export function ShipmentTracker() {
       let newTransactions = [...transactions];
 
       // 2) Also log a transaction entry so Reports reflect the stock update
-      const supplyTx = {
-        id: `T${String(newTransactions.length + 1).padStart(3, '0')}`,
-        partName: selectedShipment.partName,
-        type: 'supply' as const,
-        quantity: selectedShipment.quantity,
-        date: new Date().toISOString().split('T')[0],
-        from: selectedShipment.from,
-        to: selectedShipment.to,
-        role: (role || 'Distributor') as any,
-        // Include blockchain refs if shipment carried them
-        blockchainOrderId: (selectedShipment as any).blockchainOrderId,
-        blockchainTxHash: (selectedShipment as any).blockchainTxHash,
-        etherscanUrl: (selectedShipment as any).etherscanUrl,
-      };
-      newTransactions = [supplyTx, ...newTransactions];
+      // Persist transaction to API/Mongo (primary path)
+      let createdTx: any = null;
+      try {
+        const res = await fetch('/api/transactions', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            userId: currentUser?._id,
+            partName: selectedShipment.partName,
+            type: 'supply',
+            quantity: selectedShipment.quantity,
+            date: new Date().toISOString(),
+            from: selectedShipment.from,
+            to: selectedShipment.to,
+            role: role || 'Distributor',
+            status: 'completed',
+            blockchainOrderId: (selectedShipment as any).blockchainOrderId,
+            blockchainTxHash: (selectedShipment as any).blockchainTxHash,
+            etherscanUrl: (selectedShipment as any).etherscanUrl,
+          }),
+        });
+        if (res.ok) {
+          createdTx = await res.json();
+        } else {
+          throw new Error(await res.text());
+        }
+      } catch (e) {
+        // Safe fallback to local state
+        createdTx = {
+          id: `T-${String(newTransactions.length + 1).padStart(3, '0')}`,
+          partName: selectedShipment.partName,
+          type: 'supply' as const,
+          quantity: selectedShipment.quantity,
+          date: new Date().toISOString(),
+          from: selectedShipment.from,
+          to: selectedShipment.to,
+          role: (role || 'Distributor') as any,
+          blockchainOrderId: (selectedShipment as any).blockchainOrderId,
+          blockchainTxHash: (selectedShipment as any).blockchainTxHash,
+          etherscanUrl: (selectedShipment as any).etherscanUrl,
+        };
+        console.warn('Transaction API failed; using local fallback:', e);
+      }
+      newTransactions = [createdTx, ...newTransactions];
 
       updateUserData({
         parts: result.updatedData.parts,
@@ -209,7 +238,7 @@ export function ShipmentTracker() {
                         <div className="absolute left-3 top-4 bottom-4 w-0.5 bg-border -translate-x-1/2"></div>
                         <ul className="space-y-8">
                             {selectedShipment.history.map((event, index) => (
-                                <li key={index} className="flex items-start gap-4">
+                                <li key={`${event.status}-${index}-${event.timestamp || Math.random()}`} className="flex items-start gap-4">
                                     <div className={cn(
                                         "flex h-6 w-6 items-center justify-center rounded-full bg-background border-2 z-10",
                                         index === selectedShipment.history.length - 1 ? 'border-primary' : 'border-border'
@@ -254,8 +283,8 @@ export function ShipmentTracker() {
                       const bNum = parseInt(b.id.replace('SHP-', ''));
                       return aNum - bNum;
                     })
-                    .map((s) => (
-                      <SelectItem key={s.id} value={s.id}>
+                    .map((s, index) => (
+                      <SelectItem key={`${s.id}-${index}`} value={s.id}>
                         {s.id}: {s.partName}
                       </SelectItem>
                     ))}

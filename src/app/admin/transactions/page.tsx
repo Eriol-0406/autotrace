@@ -220,8 +220,8 @@ export default function AdminTransactionsPage() {
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {allTransactions.map((transaction) => (
-                    <TableRow key={transaction.id}>
+                  {allTransactions.map((transaction, index) => (
+                    <TableRow key={`${transaction.id}-${index}-${(transaction as any)._id || Math.random()}`}>
                       <TableCell className="font-mono text-sm">{transaction.id}</TableCell>
                       <TableCell>
                         <Badge variant={transaction.type === 'supply' ? 'default' : 'secondary'}>

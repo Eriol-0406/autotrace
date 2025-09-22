@@ -80,7 +80,11 @@ export function AdminTrackingModule() {
       });
     }
 
-    return filtered.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
+    const toTime = (d: string) => {
+      const t = new Date(d).getTime();
+      return Number.isFinite(t) ? t : 0;
+    };
+    return filtered.sort((a, b) => toTime(b.date) - toTime(a.date));
   }, [transactions, searchTerm, searchType, selectedStatus]);
 
   // Audit Log (Chronological view of all transactions)
@@ -88,7 +92,7 @@ export function AdminTrackingModule() {
     return transactions
       .map(t => ({
         ...t,
-        timestamp: new Date(t.date).getTime(),
+        timestamp: (() => { const n = new Date(t.date).getTime(); return Number.isFinite(n) ? n : 0; })(),
         type: 'transaction' as const,
       }))
       .concat(
@@ -351,7 +355,7 @@ export function AdminTrackingModule() {
                           </TableCell>
                           <TableCell>{transaction.quantity}</TableCell>
                           <TableCell>{getStatusBadge(transaction.status)}</TableCell>
-                          <TableCell>{format(new Date(transaction.date), 'MMM dd, yyyy')}</TableCell>
+                          <TableCell>{(() => { const d = new Date(transaction.date); return Number.isFinite(d.getTime()) ? format(d, 'MMM dd, yyyy') : '—'; })()}</TableCell>
                         </TableRow>
                       ))
                     )}
@@ -395,7 +399,7 @@ export function AdminTrackingModule() {
                       .map((entry) => (
                       <TableRow key={`${entry.type}-${entry.id}-${entry.timestamp}`}>
                         <TableCell className="font-mono text-sm">
-                          {format(new Date(entry.timestamp), 'MMM dd, yyyy HH:mm')}
+                          {(() => { const d = new Date(entry.timestamp); return Number.isFinite(d.getTime()) ? format(d, 'MMM dd, yyyy HH:mm') : '—'; })()}
                         </TableCell>
                         <TableCell>
                           <Badge variant={entry.type === 'transaction' ? 'default' : 'outline'}>

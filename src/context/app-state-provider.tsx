@@ -153,7 +153,7 @@ export const AppStateProvider = ({ children }: { children: ReactNode }) => {
                 setVendors(vendors && vendors.length > 0 ? vendors : allVendors.filter(v => v.relationshipType === 'vendor'));
             } else {
                 // New user: seed with role-specific demo data so features like forecasting have choices
-                const seeded = getDataForRole(role, demoParts, demoTransactions, demoShipments);
+                const seeded = getDataForRole(role || 'Distributor', '', undefined, false);
                 setParts(seeded.parts);
                 setTransactions(seeded.transactions);
                 setShipments(seeded.shipments);

@@ -24,6 +24,36 @@ export class UnifiedDataService {
     return UnifiedDataService.instance;
   }
 
+  // Normalize and dedupe transactions across heterogeneous sources
+  private normalizeAndDedupeTransactions(transactions: Transaction[]): Transaction[] {
+    const seen = new Set<string>();
+
+    const normalizeId = (id: string | undefined): string => {
+      if (!id) return '';
+      const match = id.match(/^T-?(\d{1,})$/);
+      if (match) {
+        return `T-${match[1].padStart(3, '0')}`;
+      }
+      return id;
+    };
+
+    const makeKey = (t: any): string => {
+      if (t.blockchainOrderId !== undefined && t.blockchainOrderId !== null) return `bo:${t.blockchainOrderId}`;
+      if (t.blockchainTxHash) return `bh:${t.blockchainTxHash}`;
+      if (t._id) return `db:${t._id}`;
+      return `cmp:${t.partName}-${t.quantity}-${t.from}-${t.to}-${t.date}`;
+    };
+
+    const result: Transaction[] = [];
+    for (const t of transactions || []) {
+      const key = makeKey(t as any);
+      if (seen.has(key)) continue;
+      seen.add(key);
+      result.push({ ...t, id: normalizeId(t.id) });
+    }
+    return result;
+  }
+
   /**
    * Get user-specific data from database instead of localStorage
    */
@@ -63,9 +93,9 @@ export class UnifiedDataService {
         databaseService.getVendors()
       ]);
 
-      const userData = {
+      let userData = {
         parts: parts || [],
-        transactions: transactions || [],
+        transactions: this.normalizeAndDedupeTransactions(transactions || []),
         shipments: shipments || [],
         vendors: vendors || []
       };
@@ -77,14 +107,40 @@ export class UnifiedDataService {
         vendorsCount: userData.vendors.length 
       });
 
+      // If database is empty or parts don't have turnover data, use enhanced dummy data as fallback
+      const hasTurnoverData = userData.parts.some(part => part.turnoverRate && part.turnoverRate > 0);
+      if ((userData.parts.length === 0 && userData.transactions.length === 0) || !hasTurnoverData) {
+        console.log('🔄 Database empty or missing turnover data, loading enhanced dummy data for role:', role);
+        const dummyData = getDataForRole(role, userId, undefined, false);
+        userData = {
+          parts: dummyData.parts,
+          transactions: dummyData.transactions,
+          shipments: dummyData.shipments,
+          vendors: vendors || dummyData.vendors
+        };
+        console.log('✅ Loaded enhanced dummy data:', { 
+          partsCount: userData.parts.length, 
+          transactionsCount: userData.transactions.length,
+          shipmentsCount: userData.shipments.length,
+          vendorsCount: userData.vendors.length 
+        });
+      }
+
       // Cache the result
       this.setCache(cacheKey, userData);
       
       return userData;
     } catch (error) {
       console.error('Error fetching user data:', error);
-      // Return empty data on error
-      return { parts: [], transactions: [], shipments: [], vendors: [] };
+      // Use enhanced dummy data as fallback on error
+      console.log('🔄 Database error, loading enhanced dummy data as fallback');
+      const dummyData = getDataForRole(role, userId, undefined, false);
+      return {
+        parts: dummyData.parts,
+        transactions: dummyData.transactions,
+        shipments: dummyData.shipments,
+        vendors: dummyData.vendors
+      };
     }
   }
 
@@ -117,9 +173,9 @@ export class UnifiedDataService {
         databaseService.getUsers()
       ]);
 
-      const systemData = { 
+      let systemData = { 
         parts: parts || [],
-        transactions: transactions || [],
+        transactions: this.normalizeAndDedupeTransactions(transactions || []),
         shipments: shipments || [],
         vendors: vendors || [],
         users: users || []
@@ -132,6 +188,27 @@ export class UnifiedDataService {
         vendorsCount: systemData.vendors.length,
         usersCount: systemData.users.length
       });
+
+      // If database is empty or parts don't have turnover data, use enhanced dummy data as fallback
+      const hasTurnoverData = systemData.parts.some(part => part.turnoverRate && part.turnoverRate > 0);
+      if ((systemData.parts.length === 0 && systemData.transactions.length === 0) || !hasTurnoverData) {
+        console.log('🔄 Database empty or missing turnover data, loading enhanced dummy data for admin');
+        const dummyData = getDataForRole('Admin', '', undefined, true);
+        systemData = {
+          parts: dummyData.parts,
+          transactions: dummyData.transactions,
+          shipments: dummyData.shipments,
+          vendors: vendors || dummyData.vendors,
+          users: users || []
+        };
+        console.log('✅ Loaded enhanced dummy data for admin:', { 
+          partsCount: systemData.parts.length, 
+          transactionsCount: systemData.transactions.length,
+          shipmentsCount: systemData.shipments.length,
+          vendorsCount: systemData.vendors.length,
+          usersCount: systemData.users.length
+        });
+      }
       
       // Cache the result
       this.setCache(cacheKey, systemData);
@@ -139,8 +216,16 @@ export class UnifiedDataService {
       return systemData;
     } catch (error) {
       console.error('Error fetching system data:', error);
-      // Return empty data on error
-      return { parts: [], transactions: [], shipments: [], vendors: [], users: [] };
+      // Use enhanced dummy data as fallback on error
+      console.log('🔄 Database error, loading enhanced dummy data as fallback for admin');
+      const dummyData = getDataForRole('Admin', '', undefined, true);
+      return {
+        parts: dummyData.parts,
+        transactions: dummyData.transactions,
+        shipments: dummyData.shipments,
+        vendors: dummyData.vendors,
+        users: []
+      };
     }
   }
 

@@ -8,6 +8,7 @@ import { RecentTransactions } from '@/components/dashboard/recent-transactions';
 import { SupplyForecast } from '@/components/dashboard/supply-forecast';
 import { getDataForRole } from '@/lib/data';
 import { useAppState } from '@/context/enhanced-app-state-provider';
+import { ReportsDataService } from '@/lib/reports-data';
 
 const roleSpecifics = {
   Manufacturer: {
@@ -43,7 +44,7 @@ const roleSpecifics = {
 };
 
 export function ClientDashboard() {
-  const { role, parts, transactions, currentUser, walletInfo } = useAppState();
+  const { role, currentUser, walletInfo } = useAppState();
   
   if (!role) {
     return <div className="flex items-center justify-center h-full"><p>Loading data...</p></div>
@@ -51,48 +52,51 @@ export function ClientDashboard() {
 
   // Framework requirement: Filter by user's wallet for B2B context
   const userWallet = walletInfo?.address;
-  const userId = currentUser?.id;
+  const userId = currentUser?._id;
   
+  // Use dummy data directly instead of relying on useAppState
   const { parts: userParts, transactions: userTransactions } = getDataForRole(
-    role, 
-    parts, 
-    transactions, 
-    [], // shipments not needed for dashboard
-    false, // not admin
-    userId,
-    userWallet // Pass wallet for filtering
+    role,
+    userId || '',
+    userWallet, // Pass wallet for filtering
+    false // not admin
   );
+  
+  // Get enhanced reports data
+  const summary = ReportsDataService.getTransactionSummary(role, 30);
+  const recentTxs = ReportsDataService.getRecentTransactions(role, 5);
+  const inventoryHealth = ReportsDataService.getInventoryHealth(role);
+  const topParts = ReportsDataService.getTopPerformingParts(role, 3);
+  
   const specifics = roleSpecifics[role] || roleSpecifics.Manufacturer;
   const RoleIcon = specifics.icon;
 
   // Framework requirement: Display user's current inventory and wallet-specific data
   const getStatValues = () => {
     if (!userParts) return [0,0,0,0];
-    const lowStockItems = userParts.filter(
-      (part) => part.quantity < part.reorderPoint
-    ).length;
-
+    
+    // Use enhanced data from reports service
     switch (role) {
       case 'Manufacturer':
         return [
           userParts.reduce((sum, part) => sum + part.quantity, 0).toLocaleString(),
           new Set(userParts.map(p => p.name)).size,
-          lowStockItems,
-          userTransactions.filter(t => t.type === 'demand').length
+          inventoryHealth.reorderItems,
+          summary.demandTransactions
         ];
       case 'Supplier':
         return [
           userParts.reduce((sum, part) => sum + part.quantity, 0).toLocaleString(),
           userParts.length,
-          lowStockItems,
-          userTransactions.length
+          inventoryHealth.reorderItems,
+          summary.supplyTransactions
         ];
       case 'Distributor':
         return [
           userParts.reduce((sum, part) => sum + part.quantity, 0).toLocaleString(),
           userParts.length,
           userParts.reduce((sum, part) => sum + (part.backorders || 0), 0),
-          userTransactions.filter(t => t.type === 'demand').length
+          summary.demandTransactions
         ];
       default:
         return [0, 0, 0, 0];

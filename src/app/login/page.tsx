@@ -61,41 +61,7 @@ export default function LoginPage() {
   const onSubmit = async (data: LoginFormValues) => {
     try {
       console.log('🔍 Login attempt for:', data.email);
-      
-      // Check if user exists in database
-      let user = await databaseService.getUserByEmail(data.email);
-      console.log('👤 User found:', user ? 'Yes' : 'No');
-      
-      // Check if this is the admin email
-      const isAdminEmail = data.email.toLowerCase() === 'admin@example.com';
-      console.log('👑 Is admin email:', isAdminEmail);
-      
-      if (!user) {
-        console.log('📝 Creating new user...');
-        // Create new user
-        const userData = {
-          email: data.email,
-          name: isAdminEmail ? 'System Administrator' : data.email.split('@')[0],
-          role: isAdminEmail ? 'Distributor' as const : null, // Admin gets a default role, others need to select
-          isAdmin: isAdminEmail,
-          walletConnected: false,
-          blockchainRegistered: false,
-          entityName: null,
-        };
-        console.log('📝 User data to create:', userData);
-        
-        user = await databaseService.createUser(userData);
-        console.log('✅ User created:', user ? 'Success' : 'Failed');
-      } else if (isAdminEmail && !user.isAdmin) {
-        console.log('🔧 Updating existing user to admin...');
-        // Update existing user to admin if they login with admin email
-        user = await databaseService.updateUser(user._id, {
-          isAdmin: true,
-          name: 'System Administrator'
-        });
-        console.log('✅ User updated:', user ? 'Success' : 'Failed');
-      }
-
+      const user = await databaseService.login(data.email, data.password);
       if (user) {
         setCurrentUser(user);
         setLoggedIn(true);
@@ -103,14 +69,12 @@ export default function LoginPage() {
         setIsAdmin(user.isAdmin);
         
         if (!user.role && !user.isAdmin) {
-          // New user needs to select role (but not admin)
           toast({
             title: "Welcome!",
             description: "Please select your business role to continue.",
           });
           router.push('/onboarding/role');
         } else {
-          // Existing user with role OR admin user
           const welcomeMessage = user.isAdmin 
             ? "Welcome back, Administrator!" 
             : `Welcome back, ${user.name}!`;
@@ -121,9 +85,6 @@ export default function LoginPage() {
           });
           router.push('/dashboard');
         }
-      } else {
-        console.error('❌ User is null after create/update operations');
-        throw new Error('Failed to create or retrieve user');
       }
     } catch (error) {
       console.error('❌ Login error:', error);

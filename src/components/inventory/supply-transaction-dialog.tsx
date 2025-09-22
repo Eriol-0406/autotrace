@@ -47,7 +47,7 @@ export function SupplyTransactionDialog({ children, role }: SupplyTransactionDia
   const [open, setOpen] = useState(false);
   const [isProcessing, setIsProcessing] = useState(false);
   const { toast } = useToast();
-  const { updateUserData, parts, transactions, shipments } = useAppState();
+  const { updateUserData, parts, transactions, shipments, currentUser } = useAppState();
 
   // Framework requirement: Clients add stock to their inventory
   const availableParts = demoParts;
@@ -75,21 +75,50 @@ export function SupplyTransactionDialog({ children, role }: SupplyTransactionDia
       // Framework requirement: Add stock to inventory, updating quantities on-chain
       // Note: In a full implementation, this would also update the smart contract
       
-      // Create local transaction record
-      const newTransaction = {
-        id: `T-${String(Math.floor(Math.random() * 900) + 100)}`,
-        partName: part.name,
-        type: 'supply' as const,
-        quantity: data.quantity,
-        date: new Date().toISOString().split('T')[0],
-        from: data.source,
-        to: role,
-        role: role,
-        status: 'completed' as const,
-        fromWallet: undefined, // External source
-        toWallet: undefined, // Will be filled by current user's wallet
-        invoiceNumber: `INV-2024-${Date.now().toString().slice(-6)}`
-      };
+      // Persist transaction to API/Mongo (primary path)
+      let createdTx: any = null;
+      try {
+        const res = await fetch('/api/transactions', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            userId: currentUser?._id,
+            partName: part.name,
+            type: 'supply',
+            quantity: data.quantity,
+            date: new Date().toISOString(),
+            from: data.source,
+            to: role,
+            role: role,
+            status: 'completed',
+            fromWallet: undefined,
+            toWallet: undefined,
+            invoiceNumber: `INV-${new Date().getFullYear()}-${Date.now().toString().slice(-6)}`,
+          }),
+        });
+        if (res.ok) {
+          createdTx = await res.json();
+        } else {
+          throw new Error(await res.text());
+        }
+      } catch (e) {
+        // Safe fallback to local state
+        createdTx = {
+          id: `T-${String((transactions?.length || 0) + 1).padStart(3, '0')}`,
+          partName: part.name,
+          type: 'supply' as const,
+          quantity: data.quantity,
+          date: new Date().toISOString(),
+          from: data.source,
+          to: role,
+          role: role,
+          status: 'completed' as const,
+          fromWallet: undefined,
+          toWallet: undefined,
+          invoiceNumber: `INV-${new Date().getFullYear()}-${Date.now().toString().slice(-6)}`,
+        };
+        console.warn('Transaction API failed; using local fallback:', e);
+      }
 
       // Update inventory: find existing part and increase quantity
       const updatedParts = parts.map(p => {
@@ -112,8 +141,8 @@ export function SupplyTransactionDialog({ children, role }: SupplyTransactionDia
       // Update user data with new transaction and updated inventory
       updateUserData({
         parts: updatedParts,
-        transactions: [...transactions, newTransaction],
-        shipments
+        transactions: [...transactions, createdTx],
+        shipments,
       });
 
       toast({

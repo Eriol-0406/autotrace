@@ -7,7 +7,7 @@ import type { WalletInfo } from '@/lib/web3-wallet';
 import { web3WalletService } from '@/lib/web3-wallet';
 import { databaseService, type DatabaseUser } from '@/lib/database';
 import { unifiedDataService } from '@/lib/unified-data-service';
-import { v4 as uuidv4 } from 'uuid';
+// import { v4 as uuidv4 } from 'uuid'; // Not used, commented out
 
 interface AppStateContextType {
   loggedIn: boolean;
@@ -37,6 +37,7 @@ interface AppStateContextType {
   clearUserData: () => void;
   syncToDatabase: () => Promise<void>;
   loadFromDatabase: () => Promise<void>;
+  unifiedDataService: typeof unifiedDataService;
 }
 
 const AppStateContext = createContext<AppStateContextType | undefined>(undefined);
@@ -367,6 +368,7 @@ export const EnhancedAppStateProvider = ({ children }: { children: ReactNode }) 
     clearUserData,
     syncToDatabase,
     loadFromDatabase,
+    unifiedDataService,
   };
 
   return (

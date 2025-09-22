@@ -9,7 +9,7 @@ import { AdminDashboard } from '@/components/dashboard/admin-dashboard';
 export default function DashboardPage() {
   const { isAdmin, role } = useAppState();
 
-  if (!role) {
+  if (!role && !isAdmin) {
     return (
         <AppLayout>
             <div className="flex items-center justify-center h-full">

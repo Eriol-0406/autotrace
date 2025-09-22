@@ -17,7 +17,7 @@ export async function GET(request: NextRequest) {
       return NextResponse.json(transactions);
     }
     
-    if (!userId) {
+    if (!userId || userId === 'undefined' || userId === 'null') {
       return NextResponse.json({ error: 'User ID is required' }, { status: 400 });
     }
     

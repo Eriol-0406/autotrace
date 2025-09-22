@@ -45,9 +45,9 @@ class IDGenerator {
       const { databaseService } = await import('./database');
       
       // Get the highest existing IDs and set counters accordingly
-      const shipments = await databaseService.getShipments('', true);
-      const transactions = await databaseService.getTransactions('', true);
-      const parts = await databaseService.getParts('', true);
+      const shipments = await databaseService.getShipments('');
+      const transactions = await databaseService.getTransactions('');
+      const parts = await databaseService.getParts('');
 
       // Extract numeric parts and find maximum
       const shipmentNumbers = shipments

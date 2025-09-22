@@ -49,7 +49,7 @@ const roleSpecifics = {
 export function RecentTransactions() {
   const [search, setSearch] = useState('');
   const [filter, setFilter] = useState<'all' | 'supply' | 'demand'>('all');
-  const { role, transactions, currentUser, walletInfo } = useAppState();
+  const { role, currentUser, walletInfo } = useAppState();
 
   if (!role) {
     return null; // Or a loading skeleton
@@ -59,16 +59,14 @@ export function RecentTransactions() {
 
   // Framework requirement: Show user's latest Demand/Supply transactions filtered by wallet
   const userWallet = walletInfo?.address;
-  const userId = currentUser?.id;
+  const userId = currentUser?._id;
   
+  // Use dummy data directly instead of empty useAppState transactions
   const { transactions: userTransactions } = getDataForRole(
-    role, 
-    [], // parts not needed for transactions
-    transactions, 
-    [], // shipments not needed for transactions
-    false, // not admin
-    userId,
-    userWallet // Pass wallet for filtering
+    role,
+    userId || '',
+    userWallet, // Pass wallet for filtering
+    false // not admin
   );
 
   const filteredTransactions = userTransactions.filter((tx) => {

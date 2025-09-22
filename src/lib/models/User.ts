@@ -3,19 +3,22 @@ import mongoose, { Schema, Document } from 'mongoose';
 export interface IUser extends Document {
   email: string;
   name: string;
+  passwordHash?: string;
   role: 'Manufacturer' | 'Supplier' | 'Distributor' | null;
   isAdmin: boolean;
-  walletAddress?: string;
+  walletAddress?: string | null;
   walletConnected: boolean;
   blockchainRegistered: boolean;
-  entityName?: string;
+  entityName?: string | null;
+  resetToken?: string;
+  resetTokenExpire?: Date;
   createdAt: Date;
   updatedAt: Date;
 }
 
 const UserSchema = new Schema<IUser>({
   email: {
-    type: String,
+    type: String, 
     required: true,
     unique: true,
     lowercase: true,
@@ -23,6 +26,11 @@ const UserSchema = new Schema<IUser>({
   name: {
     type: String,
     required: true,
+  },
+  passwordHash: {
+    type: String,
+    required: false,
+    select: false,
   },
   role: {
     type: String,
@@ -48,6 +56,14 @@ const UserSchema = new Schema<IUser>({
   },
   entityName: {
     type: String,
+    default: null,
+  },
+  resetToken: {
+    type: String,
+    default: null,
+  },
+  resetTokenExpire: {
+    type: Date,
     default: null,
   },
 }, {
