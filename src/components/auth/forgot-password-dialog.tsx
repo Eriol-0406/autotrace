@@ -60,8 +60,8 @@ export function ForgotPasswordDialog() {
       }
 
       toast({
-        title: 'Password Reset Email Sent',
-        description: result.message,
+        title: 'Password Reset Link Generated',
+        description: 'Check the console for your reset link (development mode)',
       });
 
       setOpen(false);
@@ -88,8 +88,7 @@ export function ForgotPasswordDialog() {
         <DialogHeader>
           <DialogTitle>Forgot Password</DialogTitle>
           <DialogDescription>
-            Enter your email address and we will send you a link to reset your
-            password.
+            Enter your email address and we will generate a secure reset link for you.
           </DialogDescription>
         </DialogHeader>
         <Form {...form}>
@@ -112,7 +111,7 @@ export function ForgotPasswordDialog() {
                 {isLoading && (
                   <Loader2 className="mr-2 h-4 w-4 animate-spin" />
                 )}
-                Send Reset Link
+                Generate Reset Link
               </Button>
               <DialogClose asChild>
                 <Button type="button" variant="secondary">
