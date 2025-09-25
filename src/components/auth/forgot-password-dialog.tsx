@@ -37,6 +37,7 @@ type ForgotPasswordFormValues = z.infer<typeof forgotPasswordSchema>;
 export function ForgotPasswordDialog() {
   const [open, setOpen] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
+  const [resetLink, setResetLink] = useState<string | null>(null);
   const { toast } = useToast();
 
   const form = useForm<ForgotPasswordFormValues>({
@@ -59,13 +60,15 @@ export function ForgotPasswordDialog() {
         throw new Error(result.message || 'Something went wrong');
       }
 
+      // Store the reset link for display
+      if (result.resetLink) {
+        setResetLink(result.resetLink);
+      }
+
       toast({
         title: 'Password Reset Link Generated',
-        description: 'Check the console for your reset link (development mode)',
+        description: result.message,
       });
-
-      setOpen(false);
-      form.reset();
     } catch (error: any) {
       toast({
         title: 'Error',
@@ -91,6 +94,41 @@ export function ForgotPasswordDialog() {
             Enter your email address and we will generate a secure reset link for you.
           </DialogDescription>
         </DialogHeader>
+        {resetLink && (
+          <div className="mb-4 p-3 bg-blue-50 border border-blue-200 rounded-md">
+            <h4 className="font-medium text-blue-900 mb-2">Your Reset Link:</h4>
+            <div className="flex items-center space-x-2">
+              <input
+                type="text"
+                value={resetLink}
+                readOnly
+                className="flex-1 px-2 py-1 text-xs border rounded bg-white"
+              />
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                onClick={() => {
+                  navigator.clipboard.writeText(resetLink);
+                  toast({
+                    title: 'Link Copied!',
+                    description: 'Reset link copied to clipboard',
+                  });
+                }}
+              >
+                Copy
+              </Button>
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                onClick={() => window.open(resetLink, '_blank')}
+              >
+                Open
+              </Button>
+            </div>
+          </div>
+        )}
         <Form {...form}>
           <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
             <FormField
@@ -107,17 +145,30 @@ export function ForgotPasswordDialog() {
               )}
             />
             <DialogFooter className="sm:justify-start">
-              <Button type="submit" disabled={isLoading}>
-                {isLoading && (
-                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                )}
-                Generate Reset Link
-              </Button>
-              <DialogClose asChild>
-                <Button type="button" variant="secondary">
-                  Cancel
-                </Button>
-              </DialogClose>
+              {!resetLink ? (
+                <>
+                  <Button type="submit" disabled={isLoading}>
+                    {isLoading && (
+                      <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                    )}
+                    Generate Reset Link
+                  </Button>
+                  <DialogClose asChild>
+                    <Button type="button" variant="secondary">
+                      Cancel
+                    </Button>
+                  </DialogClose>
+                </>
+              ) : (
+                <DialogClose asChild>
+                  <Button type="button" onClick={() => {
+                    setResetLink(null);
+                    form.reset();
+                  }}>
+                    Close
+                  </Button>
+                </DialogClose>
+              )}
             </DialogFooter>
           </form>
         </Form>
