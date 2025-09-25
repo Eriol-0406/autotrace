@@ -19,7 +19,7 @@ export async function POST(request: NextRequest) {
     if (!user) {
       // Don't reveal if user exists or not for security
       return NextResponse.json({
-        message: 'If an account with that email exists, we have sent a password reset link.'
+        message: 'If an account with that email exists, a password reset link has been generated.'
       }, { status: 200 });
     }
 
@@ -41,7 +41,7 @@ export async function POST(request: NextRequest) {
     console.log(`Reset link: http://localhost:9002/reset-password?token=${resetToken}`);
 
     return NextResponse.json({
-      message: 'If an account with that email exists, we have sent a password reset link.',
+      message: 'If an account with that email exists, a password reset link has been generated.',
       // Remove this in production - only for development
       resetToken: process.env.NODE_ENV === 'development' ? resetToken : undefined,
       resetLink: process.env.NODE_ENV === 'development' ? `http://localhost:9002/reset-password?token=${resetToken}` : undefined
