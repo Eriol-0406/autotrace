@@ -45,7 +45,15 @@ class DatabaseService {
       body: JSON.stringify({ email, password }),
     });
     if (!res.ok) throw new Error(await res.text());
-    return res.json();
+    const result = await res.json();
+    
+    // Store the token for future API calls
+    if (result.token) {
+      localStorage.setItem('authToken', result.token);
+    }
+    
+    // Return just the user object for compatibility with existing code
+    return result.user;
   }
 
   // User operations

@@ -24,15 +24,18 @@ export function AppLayout({ children, allowUnauthenticated = false }: { children
     // Admin can bypass onboarding
     if (isAdmin) return;
 
+    // Only redirect to role selection if user has no role
     if (!role) {
       router.replace('/onboarding/role');
-    } else if (!walletConnected) {
-      router.replace('/onboarding/wallet');
     }
+    // Wallet connection is optional - users can skip it and still use the system
+    // else if (!walletConnected) {
+    //   router.replace('/onboarding/wallet');
+    // }
   }, [loggedIn, role, walletConnected, isAdmin, router, allowUnauthenticated]);
 
   // For regular users, show loading while redirecting (unless unauthenticated access is allowed)
-  if (!allowUnauthenticated && !isAdmin && (!loggedIn || !role || !walletConnected)) {
+  if (!allowUnauthenticated && !isAdmin && (!loggedIn || !role)) {
     return (
       <div className="flex items-center justify-center min-h-screen">
         Loading...
