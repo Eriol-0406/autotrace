@@ -36,12 +36,12 @@ export async function POST(request: NextRequest) {
     // Hash password
     const hashedPassword = await bcrypt.hash(password, 12);
 
-    // Create user
+    // Create user without role - they'll choose during onboarding
     const newUser = await databaseService.createUser({
       email,
       passwordHash: hashedPassword,
       name,
-      role: role || 'Distributor',
+      role: null, // No role assigned yet - user will choose during onboarding
       isAdmin: false,
       walletAddress: null,
       walletConnected: false,

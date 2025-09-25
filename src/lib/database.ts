@@ -12,6 +12,8 @@ export interface DatabaseUser {
   walletConnected: boolean;
   blockchainRegistered?: boolean;
   entityName?: string | null;
+  resetToken?: string;
+  resetTokenExpiry?: Date;
   createdAt?: Date;
   updatedAt?: Date;
 }
@@ -128,6 +130,43 @@ class DatabaseService {
     } catch (error) {
       console.error('Error creating user:', error);
       throw error; // Re-throw to be handled by the calling code
+    }
+  }
+
+  async getUserByResetToken(token: string): Promise<DatabaseUser | null> {
+    try {
+      // If we're on the server (API routes), call MongoDB directly to avoid circular fetch calls
+      if (typeof window === 'undefined') {
+        const { connectDB } = await import('./mongodb');
+        const User = (await import('./models/User')).default;
+        await connectDB();
+        
+        const user = await User.findOne({ resetToken: token });
+        return user ? {
+          _id: user._id.toString(),
+          email: user.email,
+          name: user.name,
+          passwordHash: user.passwordHash,
+          role: user.role,
+          isAdmin: user.isAdmin,
+          walletAddress: user.walletAddress,
+          walletConnected: user.walletConnected,
+          blockchainRegistered: user.blockchainRegistered,
+          entityName: user.entityName,
+          resetToken: user.resetToken,
+          resetTokenExpiry: user.resetTokenExpire,
+          createdAt: user.createdAt,
+          updatedAt: user.updatedAt
+        } : null;
+      }
+      
+      // If we're on the client, make HTTP call
+      const response = await fetch(`${this.getBaseUrl()}/users/reset-token?token=${encodeURIComponent(token)}`);
+      if (!response.ok) return null;
+      return await response.json();
+    } catch (error) {
+      console.error('Error fetching user by reset token:', error);
+      return null;
     }
   }
 

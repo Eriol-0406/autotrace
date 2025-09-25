@@ -1,71 +1,62 @@
-
 import { NextRequest, NextResponse } from 'next/server';
+import bcrypt from 'bcryptjs';
+import { databaseService } from '@/lib/database';
 
-// --- Placeholder/Mock Functions ---
-// In a real application, these would interact with your database.
-
-const users = [
-    { email: 'admin@example.com', password: 'hashedpassword', resetToken: 'validtoken123', resetTokenExpire: Date.now() + 1000 * 60 * 30 },
-];
-
-
-async function findUserByToken(token: string) {
-    // TODO: Replace with your actual database query
-    console.log(`Searching for user with token: ${token}`);
-    return users.find(u => u.resetToken === token && u.resetTokenExpire && u.resetTokenExpire > Date.now());
-}
-
-async function saveUser(user: any) {
-    // TODO: Replace with your actual database update logic
-    console.log('Saving user with new password:', user);
-    const userIndex = users.findIndex(u => u.email === user.email);
-    if (userIndex !== -1) {
-        users[userIndex] = user;
-    }
-    return Promise.resolve();
-}
-
-async function hashPassword(password: string) {
-    // TODO: Replace with a strong hashing algorithm like bcrypt
-    console.log('Hashing password...');
-    return `hashed_${password}`;
-}
-
-
-// --- API Route Handler ---
-
-export async function POST(req: NextRequest) {
+export async function POST(request: NextRequest) {
   try {
-    const { token, newPassword } = await req.json();
+    const { token, password } = await request.json();
 
-    if (!token || !newPassword) {
-      return NextResponse.json({ message: 'Token and new password are required.' }, { status: 400 });
+    if (!token || !password) {
+      return NextResponse.json(
+        { error: 'Token and password are required' },
+        { status: 400 }
+      );
     }
 
-    if (newPassword.length < 8) {
-        return NextResponse.json({ message: 'Password must be at least 8 characters long.' }, { status: 400 });
+    if (password.length < 6) {
+      return NextResponse.json(
+        { error: 'Password must be at least 6 characters long' },
+        { status: 400 }
+      );
     }
 
-    const user = await findUserByToken(token);
-
-    if (!user) {
-      return NextResponse.json({ message: 'Invalid or expired password reset token.' }, { status: 400 });
-    }
-
-    // Hash the new password before saving
-    const hashedPassword = await hashPassword(newPassword);
-
-    // Update user record
-    user.password = hashedPassword;
-    user.resetToken = null;
-    user.resetTokenExpire = null;
+    // Find user with this reset token
+    const user = await databaseService.getUserByResetToken(token);
     
-    await saveUser(user);
+    if (!user) {
+      return NextResponse.json(
+        { error: 'Invalid or expired reset token' },
+        { status: 400 }
+      );
+    }
 
-    return NextResponse.json({ message: 'Password has been reset successfully.' }, { status: 200 });
+    // Check if token is expired
+    if (user.resetTokenExpiry && new Date() > new Date(user.resetTokenExpiry)) {
+      return NextResponse.json(
+        { error: 'Reset token has expired' },
+        { status: 400 }
+      );
+    }
+
+    // Hash new password
+    const hashedPassword = await bcrypt.hash(password, 12);
+
+    // Update user password and clear reset token
+    await databaseService.updateUser(user._id, {
+      passwordHash: hashedPassword,
+      resetToken: null,
+      resetTokenExpiry: null
+    });
+
+    return NextResponse.json({
+      message: 'Password has been reset successfully'
+    }, { status: 200 });
 
   } catch (error) {
     console.error('Reset password error:', error);
-    return NextResponse.json({ message: 'An internal server error occurred.' }, { status: 500 });
+    return NextResponse.json(
+      { error: 'Internal server error' },
+      { status: 500 }
+    );
   }
 }

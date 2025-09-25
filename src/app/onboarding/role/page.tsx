@@ -5,6 +5,8 @@ import { useRouter } from 'next/navigation';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle, CardFooter } from '@/components/ui/card';
 import { useAppState } from '@/context/enhanced-app-state-provider';
+import { databaseService } from '@/lib/database';
+import { useToast } from '@/hooks/use-toast';
 import type { Role } from '@/lib/types';
 import { Building, Factory, Truck } from 'lucide-react';
 
@@ -16,15 +18,35 @@ const roles: { name: Role; icon: React.ReactNode; description: string }[] = [
 
 export default function RoleSelectionPage() {
   const router = useRouter();
-  const { role, setRole } = useAppState();
+  const { role, setRole, currentUser } = useAppState();
+  const { toast } = useToast();
 
   const handleRoleSelect = (selectedRole: Role) => {
     setRole(selectedRole);
   };
 
-  const handleContinue = () => {
-    if (role) {
-      router.push('/onboarding/wallet');
+  const handleContinue = async () => {
+    if (role && currentUser) {
+      try {
+        // Save the selected role to the database
+        await databaseService.updateUser(currentUser._id, {
+          role: role
+        });
+        
+        toast({
+          title: "Role Selected!",
+          description: `You've been assigned the ${role} role.`,
+        });
+        
+        router.push('/onboarding/wallet');
+      } catch (error) {
+        console.error('Error saving role:', error);
+        toast({
+          title: "Error",
+          description: "Failed to save role. Please try again.",
+          variant: "destructive",
+        });
+      }
     }
   };
 

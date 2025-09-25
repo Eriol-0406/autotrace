@@ -51,7 +51,8 @@ export default function WalletConnectionPage() {
             walletAddress: walletInfo.address,
             walletConnected: true,
             blockchainRegistered: true,
-            entityName: entityName.trim()
+            entityName: entityName.trim(),
+            role: role // Ensure role is saved
           });
         }
 
@@ -75,6 +76,7 @@ export default function WalletConnectionPage() {
         await databaseService.updateUser(currentUser._id, {
           walletAddress: walletInfo.address,
           walletConnected: true,
+          role: role // Ensure role is saved even without blockchain registration
         });
       } catch (error) {
         console.error('Database update error:', error);

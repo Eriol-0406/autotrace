@@ -13,6 +13,7 @@ import { Input } from '@/components/ui/input';
 import { useAppState } from '@/context/enhanced-app-state-provider';
 import { useState } from 'react';
 import { Eye, EyeOff } from 'lucide-react';
+import { useToast } from '@/hooks/use-toast';
 
 const signupSchema = z.object({
   name: z.string().min(1, 'Name is required'),
@@ -47,9 +48,11 @@ const Logo = () => (
 
 export default function SignupPage() {
   const router = useRouter();
-  const { setLoggedIn, setRole, setWalletConnected, setIsAdmin, clearUserData } = useAppState();
+  const { setLoggedIn, setRole, setWalletConnected, setIsAdmin, clearUserData, setCurrentUser } = useAppState();
+  const { toast } = useToast();
   const [showPassword, setShowPassword] = useState(false);
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
+  const [isLoading, setIsLoading] = useState(false);
 
 
   const form = useForm<SignupFormValues>({
@@ -62,20 +65,63 @@ export default function SignupPage() {
     },
   });
 
-  const onSubmit = (data: SignupFormValues) => {
-    // In a real app, you'd register the user in a database.
-    // Here, we'll simulate a successful signup and login.
-    console.log('Signup successful with:', data);
-    
-    // Reset state before setting new values
-    clearUserData();
-    
-    // Set logged in and proceed to onboarding
-    setLoggedIn(true);
-    setIsAdmin(false);
-    setRole(null);
-    setWalletConnected(false);
-    router.push('/onboarding/role');
+  const onSubmit = async (data: SignupFormValues) => {
+    setIsLoading(true);
+    try {
+      console.log('🔍 Signup attempt for:', data.email);
+      
+      const response = await fetch('/api/auth/signup', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          name: data.name,
+          email: data.email,
+          password: data.password,
+          // Don't set role yet - user will choose during onboarding
+        }),
+      });
+
+      const result = await response.json();
+
+      if (!response.ok) {
+        throw new Error(result.error || 'Signup failed');
+      }
+
+      console.log('✅ Signup successful:', result);
+      
+      // Store the token for future API calls
+      localStorage.setItem('authToken', result.token);
+      
+      // Set user data in app state
+      setCurrentUser(result.user);
+      setLoggedIn(true);
+      setIsAdmin(result.user.isAdmin);
+      setRole(result.user.role); // This will be null initially
+      setWalletConnected(false);
+      
+      // Clear any previous data
+      clearUserData();
+      
+      toast({
+        title: "Account Created Successfully!",
+        description: `Welcome ${data.name}! Please complete your setup.`,
+      });
+      
+      // Redirect to wallet connection (first step of onboarding)
+      router.push('/onboarding/wallet');
+      
+    } catch (error: any) {
+      console.error('❌ Signup error:', error);
+      toast({
+        title: "Signup Failed",
+        description: error.message || "Please try again.",
+        variant: "destructive",
+      });
+    } finally {
+      setIsLoading(false);
+    }
   };
 
   return (
@@ -162,8 +208,8 @@ export default function SignupPage() {
                   </FormItem>
                 )}
               />
-              <Button type="submit" className="w-full">
-                Create an account
+              <Button type="submit" className="w-full" disabled={isLoading}>
+                {isLoading ? "Creating Account..." : "Create an account"}
               </Button>
             </form>
           </Form>

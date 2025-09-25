@@ -1,81 +1,55 @@
-
 import { NextRequest, NextResponse } from 'next/server';
+import { databaseService } from '@/lib/database';
 import crypto from 'crypto';
 
-// --- Placeholder/Mock Functions ---
-// In a real application, these would interact with your database and email service.
-
-// Mock user database
-const users = [
-    { email: 'admin@example.com', password: 'hashedpassword', resetToken: null, resetTokenExpire: null },
-    { email: 'user@example.com', password: 'hashedpassword', resetToken: null, resetTokenExpire: null },
-];
-
-async function findUserByEmail(email: string) {
-    // TODO: Replace with your actual database query
-    console.log(`Searching for user with email: ${email}`);
-    return users.find(u => u.email === email);
-}
-
-async function saveUser(user: any) {
-    // TODO: Replace with your actual database update logic
-    console.log('Saving user with reset token:', user);
-    const userIndex = users.findIndex(u => u.email === user.email);
-    if (userIndex !== -1) {
-        users[userIndex] = user;
-    }
-    return Promise.resolve();
-}
-
-async function sendResetEmail(email: string, resetLink: string) {
-    // TODO: Replace with your actual email sending logic (e.g., Nodemailer, SendGrid)
-    console.log('--- Sending Password Reset Email ---');
-    console.log(`To: ${email}`);
-    console.log(`Link: ${resetLink}`);
-    console.log('--- Email Sent (Simulated) ---');
-    // This function should throw an error if email sending fails.
-    return Promise.resolve();
-}
-
-// --- API Route Handler ---
-
-export async function POST(req: NextRequest) {
+export async function POST(request: NextRequest) {
   try {
-    const { email } = await req.json();
+    const { email } = await request.json();
 
     if (!email) {
-      return NextResponse.json({ message: 'Email is required.' }, { status: 400 });
+      return NextResponse.json(
+        { error: 'Email is required' },
+        { status: 400 }
+      );
     }
 
-    const user = await findUserByEmail(email);
-
-    // IMPORTANT: For security, always return a generic success message
-    // even if the email is not found. This prevents user enumeration.
-    if (!user) {
-      console.log(`Attempted password reset for non-existent email: ${email}`);
-      return NextResponse.json({ message: 'If an account with that email exists, a password reset link has been sent.' }, { status: 200 });
-    }
-
-    // Generate a secure token
-    const token = crypto.randomBytes(32).toString('hex');
-    const resetTokenExpire = Date.now() + 3600000; // Token expires in 1 hour
-
-    // Save the token and expiry date to the user record in the database
-    user.resetToken = token;
-    user.resetTokenExpire = resetTokenExpire;
-    await saveUser(user);
+    // Check if user exists
+    const user = await databaseService.getUserByEmail(email);
     
-    // Create the password reset link
-    // In production, use your actual website's URL
-    const resetLink = `${req.nextUrl.origin}/reset-password?token=${token}`;
+    if (!user) {
+      // Don't reveal if user exists or not for security
+      return NextResponse.json({
+        message: 'If an account with that email exists, we have sent a password reset link.'
+      }, { status: 200 });
+    }
 
-    // Send the email
-    await sendResetEmail(user.email, resetLink);
+    // Generate reset token
+    const resetToken = crypto.randomBytes(32).toString('hex');
+    const resetTokenExpiry = new Date(Date.now() + 3600000); // 1 hour from now
 
-    return NextResponse.json({ message: 'If an account with that email exists, a password reset link has been sent.' }, { status: 200 });
+    // Store reset token in database
+    await databaseService.updateUser(user._id, {
+      resetToken,
+      resetTokenExpiry: resetTokenExpiry
+    });
+
+    // In a real application, you would send an email here
+    // For now, we'll just return the token (remove this in production!)
+    console.log(`Password reset token for ${email}: ${resetToken}`);
+    console.log(`Reset link: http://localhost:9002/reset-password?token=${resetToken}`);
+
+    return NextResponse.json({
+      message: 'If an account with that email exists, we have sent a password reset link.',
+      // Remove this in production - only for development
+      resetToken: process.env.NODE_ENV === 'development' ? resetToken : undefined,
+      resetLink: process.env.NODE_ENV === 'development' ? `http://localhost:9002/reset-password?token=${resetToken}` : undefined
+    }, { status: 200 });
 
   } catch (error) {
     console.error('Forgot password error:', error);
-    return NextResponse.json({ message: 'An internal server error occurred.' }, { status: 500 });
+    return NextResponse.json(
+      { error: 'Internal server error' },
+      { status: 500 }
+    );
   }
 }
