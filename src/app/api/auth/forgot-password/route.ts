@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { databaseService } from '@/lib/database';
-import crypto from 'crypto';
+import jwt from 'jsonwebtoken';
 
 export async function POST(request: NextRequest) {
   try {
@@ -23,19 +23,21 @@ export async function POST(request: NextRequest) {
       }, { status: 200 });
     }
 
-    // Generate reset token
-    const resetToken = crypto.randomBytes(32).toString('hex');
-    const resetTokenExpiry = new Date(Date.now() + 3600000); // 1 hour from now
+    // Generate JWT reset token (expires in 1 hour)
+    const JWT_SECRET = process.env.JWT_SECRET || 'your-secret-key';
+    const resetToken = jwt.sign(
+      { 
+        userId: user._id,
+        email: user.email,
+        purpose: 'password-reset'
+      },
+      JWT_SECRET,
+      { expiresIn: '1h' }
+    );
 
-    // Store reset token in database
-    await databaseService.updateUser(user._id, {
-      resetToken,
-      resetTokenExpiry: resetTokenExpiry
-    });
-
-    // In a real application, you would send an email here
+    // In a real application, you would send an email with the JWT token
     // For now, we'll just return the token (remove this in production!)
-    console.log(`Password reset token for ${email}: ${resetToken}`);
+    console.log(`Password reset JWT token for ${email}: ${resetToken}`);
     console.log(`Reset link: http://localhost:9002/reset-password?token=${resetToken}`);
 
     return NextResponse.json({

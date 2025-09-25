@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import bcrypt from 'bcryptjs';
+import jwt from 'jsonwebtoken';
 import { databaseService } from '@/lib/database';
 
 export async function POST(request: NextRequest) {
@@ -20,20 +21,33 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Find user with this reset token
-    const user = await databaseService.getUserByResetToken(token);
+    // Verify JWT reset token
+    const JWT_SECRET = process.env.JWT_SECRET || 'your-secret-key';
+    let decodedToken;
     
-    if (!user) {
+    try {
+      decodedToken = jwt.verify(token, JWT_SECRET) as any;
+      
+      // Check if this is a password reset token
+      if (decodedToken.purpose !== 'password-reset') {
+        return NextResponse.json(
+          { error: 'Invalid token purpose' },
+          { status: 400 }
+        );
+      }
+    } catch (error) {
       return NextResponse.json(
         { error: 'Invalid or expired reset token' },
         { status: 400 }
       );
     }
 
-    // Check if token is expired
-    if (user.resetTokenExpiry && new Date() > new Date(user.resetTokenExpiry)) {
+    // Get user from database using the userId from the JWT
+    const user = await databaseService.getUserByEmail(decodedToken.email);
+    
+    if (!user) {
       return NextResponse.json(
-        { error: 'Reset token has expired' },
+        { error: 'User not found' },
         { status: 400 }
       );
     }
@@ -41,11 +55,9 @@ export async function POST(request: NextRequest) {
     // Hash new password
     const hashedPassword = await bcrypt.hash(password, 12);
 
-    // Update user password and clear reset token
+    // Update user password (no need to clear reset token since we're using JWT)
     await databaseService.updateUser(user._id, {
-      passwordHash: hashedPassword,
-      resetToken: null,
-      resetTokenExpiry: null
+      passwordHash: hashedPassword
     });
 
     return NextResponse.json({
