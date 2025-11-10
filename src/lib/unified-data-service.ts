@@ -14,6 +14,8 @@ export class UnifiedDataService {
   
   // Real-time sync mechanism
   private dataChangeListeners = new Set<() => void>();
+  private inventoryChangeListeners = new Set<(parts: Part[]) => void>();
+  private transactionChangeListeners = new Set<(transactions: Transaction[]) => void>();
 
   private constructor() {}
 
@@ -22,6 +24,40 @@ export class UnifiedDataService {
       UnifiedDataService.instance = new UnifiedDataService();
     }
     return UnifiedDataService.instance;
+  }
+
+  // Real-time listeners for inventory changes
+  public addInventoryChangeListener(listener: (parts: Part[]) => void): () => void {
+    this.inventoryChangeListeners.add(listener);
+    return () => this.inventoryChangeListeners.delete(listener);
+  }
+
+  // Real-time listeners for transaction changes
+  public addTransactionChangeListener(listener: (transactions: Transaction[]) => void): () => void {
+    this.transactionChangeListeners.add(listener);
+    return () => this.transactionChangeListeners.delete(listener);
+  }
+
+  // Notify listeners of inventory changes
+  private notifyInventoryChange(parts: Part[]): void {
+    this.inventoryChangeListeners.forEach(listener => {
+      try {
+        listener(parts);
+      } catch (error) {
+        console.error('Error in inventory change listener:', error);
+      }
+    });
+  }
+
+  // Notify listeners of transaction changes
+  private notifyTransactionChange(transactions: Transaction[]): void {
+    this.transactionChangeListeners.forEach(listener => {
+      try {
+        listener(transactions);
+      } catch (error) {
+        console.error('Error in transaction change listener:', error);
+      }
+    });
   }
 
   // Normalize and dedupe transactions across heterogeneous sources
@@ -129,6 +165,10 @@ export class UnifiedDataService {
       // Cache the result
       this.setCache(cacheKey, userData);
       
+      // Notify listeners of data changes
+      this.notifyInventoryChange(userData.parts);
+      this.notifyTransactionChange(userData.transactions);
+      
       return userData;
     } catch (error) {
       console.error('Error fetching user data:', error);
@@ -213,6 +253,10 @@ export class UnifiedDataService {
       // Cache the result
       this.setCache(cacheKey, systemData);
       
+      // Notify listeners of data changes
+      this.notifyInventoryChange(systemData.parts);
+      this.notifyTransactionChange(systemData.transactions);
+      
       return systemData;
     } catch (error) {
       console.error('Error fetching system data:', error);
@@ -281,6 +325,17 @@ export class UnifiedDataService {
 
       // Invalidate relevant caches
       this.invalidateAllCaches();
+      
+      // Notify listeners of changes
+      if (type === 'part' || type === 'transaction') {
+        // Refresh data and notify listeners
+        const systemData = await this.getSystemData();
+        if (type === 'part') {
+          this.notifyInventoryChange(systemData.parts);
+        } else if (type === 'transaction') {
+          this.notifyTransactionChange(systemData.transactions);
+        }
+      }
       
       return true;
     } catch (error) {

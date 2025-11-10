@@ -43,7 +43,7 @@ export function AdminInventoryModule() {
   const [typeFilter, setTypeFilter] = useState<string>('all');
   const [allTransactions, setAllTransactions] = useState<Transaction[]>([]);
 
-  // Framework Requirement 1: View Transactions - List all transactions system-wide
+  // Framework Requirement 1: View Transactions - List all transactions system-wide with real-time updates
   useEffect(() => {
     if (isAdmin && unifiedDataService) {
       const fetchSystemTransactions = async () => {
@@ -55,7 +55,18 @@ export function AdminInventoryModule() {
           console.error('Error fetching system transactions:', error);
         }
       };
+      
       fetchSystemTransactions();
+      
+      // Set up real-time listener for transaction changes
+      const unsubscribeTransactions = unifiedDataService.addTransactionChangeListener((transactions) => {
+        console.log('🔄 Real-time transaction update received:', transactions.length);
+        setAllTransactions(transactions);
+      });
+      
+      return () => {
+        unsubscribeTransactions();
+      };
     }
   }, [isAdmin, unifiedDataService]);
   const filteredTransactions = useMemo(() => {
@@ -135,7 +146,7 @@ export function AdminInventoryModule() {
   const handleApproveTransaction = async (transaction: Transaction) => {
     setProcessingTx(transaction.id);
     try {
-      const updatedTransactions = transactions.map(tx => 
+      const updatedTransactions = allTransactions.map(tx => 
         tx.id === transaction.id 
           ? { 
               ...tx, 
@@ -146,7 +157,13 @@ export function AdminInventoryModule() {
           : tx
       );
 
-      updateUserData({ transactions: updatedTransactions });
+      // Update via unified data service to trigger real-time notifications
+      await unifiedDataService.updateData('transaction', transaction.id, {
+        ...transaction,
+        status: 'approved',
+        approvedBy: 'Admin',
+        approvedAt: new Date().toISOString()
+      });
 
       if (transaction.blockchainOrderId) {
         try {
@@ -175,18 +192,13 @@ export function AdminInventoryModule() {
   const handleRejectTransaction = async (transaction: Transaction) => {
     setProcessingTx(transaction.id);
     try {
-      const updatedTransactions = transactions.map(tx => 
-        tx.id === transaction.id 
-          ? { 
-              ...tx, 
-              status: 'rejected' as const, 
-              approvedBy: 'Admin',
-              approvedAt: new Date().toISOString()
-            }
-          : tx
-      );
-
-      updateUserData({ transactions: updatedTransactions });
+      // Update via unified data service to trigger real-time notifications
+      await unifiedDataService.updateData('transaction', transaction.id, {
+        ...transaction,
+        status: 'rejected',
+        approvedBy: 'Admin',
+        approvedAt: new Date().toISOString()
+      });
 
       toast({
         title: 'Transaction Rejected',

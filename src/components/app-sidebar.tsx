@@ -12,7 +12,7 @@ import {
   SidebarMenuButton,
   SidebarSeparator,
 } from '@/components/ui/sidebar';
-import { Boxes, FileText, Handshake, LayoutDashboard, Truck, Link as LinkIcon, Shield, Building } from 'lucide-react';
+import { Boxes, FileText, Handshake, LayoutDashboard, Truck, Link as LinkIcon, Shield, Building, Users } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useAppState } from '@/context/enhanced-app-state-provider';
 
@@ -41,6 +41,10 @@ const menuItems = [
   { href: '/vendors', label: 'Vendors', icon: Handshake },
   { href: '/tracking', label: 'Tracking', icon: Truck },
   { href: '/reports', label: 'Reports', icon: FileText },
+];
+
+const adminMenuItems = [
+  { href: '/admin/users', label: 'User Management', icon: Users },
 ];
 
 export function AppSidebar() {

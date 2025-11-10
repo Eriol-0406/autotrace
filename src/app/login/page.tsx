@@ -100,49 +100,55 @@ export default function LoginPage() {
     if (!credentialResponse.credential) return;
     
     try {
-      // Decode JWT token to get user info
-      const base64Url = credentialResponse.credential.split('.')[1];
-      const base64 = base64Url.replace(/-/g, '+').replace(/_/g, '/');
-      const jsonPayload = decodeURIComponent(atob(base64).split('').map(function(c) {
-        return '%' + ('00' + c.charCodeAt(0).toString(16)).slice(-2);
-      }).join(''));
-      
-      const googleUser = JSON.parse(jsonPayload);
-      
-      // Check if user exists in database
-      let user = await databaseService.getUserByEmail(googleUser.email);
-      
-      if (!user) {
-        // Create new user from Google data without role - they'll need to select it
-        user = await databaseService.createUser({
-          email: googleUser.email,
-          name: googleUser.name,
-          role: null, // No role assigned yet - user needs to select
-          isAdmin: false,
-          walletConnected: false,
-          blockchainRegistered: false,
-          entityName: null,
-        });
+      // Send credential to server for verification and user creation/authentication
+      const response = await fetch('/api/auth/google', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ credential: credentialResponse.credential }),
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.error || 'Google authentication failed');
       }
 
-      if (user) {
-        setCurrentUser(user);
-        setLoggedIn(true);
-        setRole(user.role);
-        setIsAdmin(user.isAdmin);
+      const result = await response.json();
+      const { user, token } = result;
+
+      // Store the token for future API calls
+      if (token) {
+        localStorage.setItem('authToken', token);
+      }
+
+      // Update app state
+      setCurrentUser(user);
+      setLoggedIn(true);
+      setRole(user.role);
+      setIsAdmin(user.isAdmin);
+      
+      // Redirect based on user state
+      if (!user.role && !user.isAdmin) {
+        toast({
+          title: "Welcome!",
+          description: "Please select your business role to continue.",
+        });
+        router.push('/onboarding/role');
+      } else {
+        const welcomeMessage = user.isAdmin 
+          ? "Welcome back, Administrator!" 
+          : `Welcome, ${user.name}!`;
         
         toast({
           title: "Login successful",
-          description: `Welcome, ${user.name}!`,
+          description: welcomeMessage,
         });
-        
         router.push('/dashboard');
       }
     } catch (error) {
       console.error('Google login error:', error);
       toast({
         title: "Login failed",
-        description: "Google authentication failed. Please try again.",
+        description: error instanceof Error ? error.message : "Google authentication failed. Please try again.",
         variant: "destructive",
       });
     }

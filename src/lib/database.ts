@@ -371,6 +371,29 @@ class DatabaseService {
     }
   }
 
+  async getUserById(id: string): Promise<DatabaseUser | null> {
+    try {
+      const response = await fetch(`${this.getBaseUrl()}/users/${id}`);
+      if (!response.ok) return null;
+      return await response.json();
+    } catch (error) {
+      console.error('Error fetching user by ID:', error);
+      return null;
+    }
+  }
+
+  async deleteUser(id: string): Promise<boolean> {
+    try {
+      const response = await fetch(`${this.getBaseUrl()}/users/${id}`, {
+        method: 'DELETE',
+      });
+      return response.ok;
+    } catch (error) {
+      console.error('Error deleting user:', error);
+      return false;
+    }
+  }
+
   // Shipments operations
   async getShipments(userId: string): Promise<Shipment[]> {
     try {
